@@ -1,0 +1,387 @@
+import { EditorView, lineNumbers, drawSelection, highlightActiveLine, highlightActiveLineGutter, Decoration } from '@codemirror/view'
+import { EditorState, Compartment } from '@codemirror/state'
+import { HighlightStyle, syntaxHighlighting, bracketMatching } from '@codemirror/language'
+import { tags as t } from '@lezer/highlight'
+import { javascript } from '@codemirror/lang-javascript'
+import { python } from '@codemirror/lang-python'
+import { yaml } from '@codemirror/lang-yaml'
+import { vim, getCM, Vim } from '@replit/codemirror-vim'
+import { chapters, levels, tokenize, stars } from './levels.js'
+import { missions, createSession, streak, ymd } from './drill.js'
+import './style.css'
+
+const LANGS = { js: javascript, py: python, yaml }
+const SANDBOX = {
+  id: 'sandbox', title: '자유 연습장', keys: [], file: 'scratch.js',
+  desc: '목표 없이 마음껏 연습하세요. <code>:s</code>, 매크로, 텍스트 오브젝트 무엇이든.', lang: 'js',
+  start: '// 자유 연습장\nfunction greet(name) {\n  const msg = "Hello, " + name;\n  console.log(msg);\n  return msg;\n}\n\ngreet("vim");',
+  cursor: [0, 0],
+}
+const SCHEMES = ['tokyonight', 'catppuccin', 'gruvbox', 'tokyonight-day']
+const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'])
+const HANGUL = /[ㄱ-ㅎㅏ-ㅣ가-힣]/
+const $ = (s) => document.querySelector(s)
+
+// 구문 색은 CSS 변수를 참조 → 컬러스킴을 바꿔도 에디터 재구성 불필요
+const highlight = syntaxHighlighting(HighlightStyle.define([
+  { tag: [t.keyword, t.controlKeyword, t.moduleKeyword, t.definitionKeyword], color: 'var(--magenta)' },
+  { tag: [t.string, t.special(t.string)], color: 'var(--green)' },
+  { tag: [t.number, t.bool, t.null, t.atom], color: 'var(--orange)' },
+  { tag: t.comment, color: 'var(--fg-dim)', fontStyle: 'italic' },
+  { tag: [t.function(t.variableName), t.function(t.propertyName)], color: 'var(--blue)' },
+  { tag: [t.propertyName, t.definition(t.propertyName)], color: 'var(--cyan)' },
+  { tag: [t.typeName, t.className], color: 'var(--yellow)' },
+  { tag: [t.operator, t.punctuation, t.separator], color: 'var(--cyan)' },
+  { tag: t.definition(t.variableName), color: 'var(--fg)' },
+  { tag: t.heading, color: 'var(--blue)', fontWeight: 'bold' },
+]))
+
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(`nvim-edu:${k}`)) ?? d } catch { return d } },
+  set(k, v) { try { localStorage.setItem(`nvim-edu:${k}`, JSON.stringify(v)) } catch {} },
+}
+const progress = store.get('progress', {})
+const records = store.get('records', {}) // 미션별 최고 기록 { time, keys }
+const days = store.get('days', []) // 미션을 완료한 날짜들
+const buffers = [] // 최근 연 화면들 (bufferline)
+
+let view, level, count, keyLog, done
+let session = null // 미션 진행 중일 때만
+let imeKey = false // 직전 키가 NORMAL 모드 한글 IME 입력이었나 (:s/x/한글/ 같은 정상 입력은 막지 않게)
+const relNumbers = new Compartment()
+
+// ── 컬러스킴 ──
+function setScheme(name) {
+  if (!SCHEMES.includes(name)) return msg(`E185: 컬러스킴 '${name}' 을(를) 찾을 수 없습니다. 사용 가능: ${SCHEMES.join(', ')}`, 'error')
+  document.documentElement.dataset.scheme = name
+  $('#scheme').value = name
+  store.set('scheme', name)
+  msg(`colorscheme ${name}`, 'ok')
+}
+$('#scheme').innerHTML = SCHEMES.map((s) => `<option>${s}</option>`).join('')
+$('#scheme').onchange = (e) => { setScheme(e.target.value); view?.focus() }
+setScheme(store.get('scheme', null) ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'tokyonight-day' : 'tokyonight'))
+const cycleScheme = () => setScheme(SCHEMES[(SCHEMES.indexOf($('#scheme').value) + 1) % SCHEMES.length])
+
+Vim.defineEx('colorscheme', 'colo', (_cm, p) => (p.args?.[0] ? setScheme(p.args[0]) : msg(`${$('#scheme').value} — 사용 가능: ${SCHEMES.join(' ')}`)))
+Vim.defineEx('quit', 'q', () => msg('E37: 여기선 :q 로 탈출할 수 없습니다. 계속 연습하세요 :)', 'error'))
+Vim.defineEx('write', 'w', () => msg(`"${fileName()}" 저장할 필요 없어요. 진행 상황은 자동 저장됩니다`, 'ok'))
+
+// ── cmdline 메시지 영역 (nvim 의 echo area) ──
+function msg(text, kind = '') {
+  $('#cmdline').textContent = text
+  $('#cmdline').className = kind
+}
+
+function keyLabel(e) {
+  if (e.key === 'Escape') return 'Esc'
+  if (e.key === 'Enter') return '⏎'
+  if (e.key === ' ') return '␣'
+  if (e.key === 'Backspace') return '⌫'
+  if (e.ctrlKey) return `C-${e.key}`
+  return e.key
+}
+
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+// 위치는 [줄, 열] 또는 절대 오프셋
+const posOf = (state, p) => (typeof p === 'number' ? p : state.doc.line(p[0] + 1).from + p[1])
+const goalTexts = (g) => [g.text].flat()
+const EXT = { js: 'js', py: 'py', yaml: 'yaml' }
+const fileFor = (id) => {
+  if (id === 'sandbox') return SANDBOX.file
+  if (missions.some((m) => m.id === id)) return `${id.replace('mission-', '')}.drill`
+  const l = levels.find((x) => x.id === id)
+  return `${id}.${EXT[l?.lang] ?? 'txt'}`
+}
+const currentId = () => session?.mission.id ?? level?.id
+const fileName = () => fileFor(currentId())
+const crumb = () => session ? 'missions' : chapters.find((c) => c.id === level?.chapter)?.title ?? 'playground'
+
+// ── neo-tree ──
+function renderNav() {
+  const active = currentId()
+  const file = (id, title, { meta = '', cls = '', ico = '○' } = {}) =>
+    `<a href="#${id}" class="${cls} ${id === active ? 'active' : ''}"><span class="ico">${ico}</span><span class="name">${title}</span><span class="meta">${meta}</span></a>`
+  const cleared = levels.filter((l) => progress[l.id]).length
+  const s = streak(days)
+  $('#nav').innerHTML =
+    `<div class="root">nvim-edu/ <span class="dim">${s ? `🔥${s} · ` : ''}${cleared}/${levels.length}</span></div>` +
+    `<div class="dir">missions/</div>` +
+    missions.map((m) => file(m.id, m.title, { cls: 'drill', ico: '◆', meta: records[m.id] ? `${records[m.id].time.toFixed(1)}s` : '' })).join('') +
+    chapters.map((c) => `<div class="dir">${c.title}/</div>` +
+      levels.filter((l) => l.chapter === c.id).map((l) => file(l.id, l.title, {
+        cls: progress[l.id] ? 'cleared' : '', ico: progress[l.id] ? '●' : '○', meta: '★'.repeat(progress[l.id] ?? 0),
+      })).join('')).join('') +
+    `<div class="dir">playground/</div>` + file('sandbox', SANDBOX.title, { ico: '∞' })
+  $('#dash-stats').textContent = `${s ? `🔥 ${s}일 연속 · ` : ''}레벨 ${cleared} / ${levels.length} 클리어`
+}
+
+// ── bufferline / winbar / lualine ──
+function renderBars() {
+  const id = currentId()
+  const modified = view && !session && level && view.state.doc.toString() !== level.start
+  $('#buffers').innerHTML = buffers.map((b) =>
+    `<a class="buf ${b === id ? 'active' : ''}" href="#${b}">${fileFor(b)}${b === id && modified ? ' <span class="mod">●</span>' : ''}</a>`).join('')
+  $('#winbar').innerHTML = `<span class="crumb">${escapeHtml(crumb())} › </span>${fileName()}${modified ? ' <span class="mod">[+]</span>' : ''}`
+  $('#ll-chapter').textContent = `⎇ ${crumb()}`
+  $('#ll-file').textContent = fileName() + (modified ? ' [+]' : '')
+}
+
+function renderPos() {
+  const head = view.state.selection.main.head
+  const line = view.state.doc.lineAt(head)
+  $('#pos').textContent = `${line.number}:${head - line.from + 1}`
+}
+
+// 상대 줄 번호 (set relativenumber): 5j 같은 이동 연습의 핵심
+const numbersFor = (cur) => lineNumbers({ formatNumber: (n) => String(n === cur ? n : Math.abs(n - cur)) })
+
+function renderGoal() {
+  const g = level.goal
+  if (!g) return ($('#goal').innerHTML = '<p class="dim">목표 없음. 자유롭게 연습하세요</p>')
+  if (g.cursor != null) {
+    return ($('#goal').innerHTML = `<p>커서를 에디터의 <span class="target-sample">초록 칸</span>으로 옮기세요.</p><p class="dim">이동 과제에서는 텍스트가 바뀌지 않습니다. 왼쪽 상대 줄 번호를 보고 <b>{n}j</b> 를 써보세요.</p>`)
+  }
+  const cur = view.state.doc.toString().split('\n')
+  $('#goal').innerHTML = '<pre>' + goalTexts(g)[0].split('\n').map((line, i) =>
+    `<div class="${cur[i] === line ? 'ok' : 'diff'}">${escapeHtml(line) || ' '}</div>`).join('') + '</pre>'
+}
+
+function renderStatus(mode = $('#mode').dataset.mode) {
+  $('#mode').textContent = mode.toUpperCase()
+  $('#mode').dataset.mode = mode
+  $('#keys').innerHTML = keyLog.slice(-40).map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')
+  if (session) {
+    const sec = session.t0 ? (performance.now() - session.t0) / 1000 : 0
+    $('#count').textContent = `${session.round + 1}/${session.total} · ${sec.toFixed(1)}s · ${session.keys + count}타`
+  } else {
+    const par = level.solution ? tokenize(level.solution).length : null
+    $('#count').textContent = par ? `${count}/${par}타` : `${count}타`
+  }
+}
+
+function check() {
+  if (done || !level.goal) return
+  const v = getCM(view).state.vim
+  if (v.insertMode || v.visualMode) return
+  const { goal } = level
+  const ok = goal.text != null
+    ? goalTexts(goal).includes(view.state.doc.toString())
+    : view.state.selection.main.head === posOf(view.state, goal.cursor)
+  if (!ok) return
+  done = true
+  session ? roundCleared() : levelCleared()
+}
+
+function levelCleared() {
+  const par = tokenize(level.solution).length
+  const s = stars(count, par)
+  progress[level.id] = Math.max(progress[level.id] ?? 0, s)
+  store.set('progress', progress)
+  renderNav()
+  const next = levels[levels.indexOf(level) + 1]
+  msg(`"${fileName()}" 클리어 — ${count}타 (기준 ${par}타)`, 'ok')
+  showBanner('✔ 클리어', `
+    <div class="stars">${'★'.repeat(s)}${'☆'.repeat(3 - s)}</div>
+    <div><b>${count}</b>타 · 기준 ${par}타${s < 3 ? `<br><span class="dim">모범 답안</span> <code>${escapeHtml(level.solution)}</code>` : ''}</div>
+    <button id="next">${next ? `다음: ${next.title} ⏎` : '미션 하러 가기 ⏎'}</button>`,
+  () => { location.hash = next ? next.id : missions[0].id })
+}
+
+function roundCleared() {
+  session.keys += count
+  session.cursor = view.state.selection.main.head
+  session.round++
+  $('#editor').classList.add('flash')
+  setTimeout(() => $('#editor').classList.remove('flash'), 250)
+  if (session.round < session.total) return setTimeout(() => startRound(), 250)
+
+  const time = (performance.now() - session.t0) / 1000
+  const id = session.mission.id
+  const best = records[id]
+  const isBest = !best || time < best.time
+  if (isBest) records[id] = { time, keys: session.keys }
+  store.set('records', records)
+  if (!days.includes(ymd(new Date()))) days.push(ymd(new Date()))
+  store.set('days', days)
+  clearInterval(session.timer)
+  renderNav()
+  msg(`${session.mission.title} 완료 — ${time.toFixed(1)}s, ${session.keys}타`, 'ok')
+  showBanner(isBest ? '🏆 최고 기록' : '✔ 미션 완료', `
+    <div><b>${session.mission.title}</b> ${time.toFixed(1)}초 · ${session.keys}타 <span class="dim">(라운드당 ${(session.keys / session.total).toFixed(1)}타)</span></div>
+    <div class="dim">${isBest ? '최고 기록 갱신!' : `최고 기록 ${best.time.toFixed(1)}초`} · 🔥 ${streak(days)}일 연속</div>
+    <button id="next">한 번 더 ⏎</button>`,
+  () => startMission(session.mission))
+}
+
+function showBanner(title, html, onNext) {
+  $('#banner').innerHTML = `<span class="float-title">${title}</span>${html}`
+  $('#banner').hidden = false
+  $('#next').onclick = onNext
+  $('#next').focus()
+}
+
+function mount(lvl) {
+  level = lvl
+  count = 0
+  keyLog = []
+  done = false
+  view?.destroy()
+
+  const state = EditorState.create({ doc: lvl.start })
+  const marks = lvl.marks ?? (lvl.goal?.cursor ? [{ from: posOf(state, lvl.goal.cursor), cls: 'cm-target' }] : [])
+  const isMove = lvl.goal?.cursor != null
+  const anchor = Math.min(posOf(state, lvl.cursor), state.doc.length)
+  let curLine = state.doc.lineAt(anchor).number
+  view = new EditorView({
+    parent: $('#editor'),
+    state: EditorState.create({
+      doc: lvl.start,
+      selection: { anchor },
+      extensions: [
+        vim(), // 다른 keymap보다 먼저 와야 함
+        EditorState.allowMultipleSelections.of(true), // Ctrl-v 블록 입력에 필요
+        relNumbers.of(numbersFor(curLine)),
+        drawSelection(), highlightActiveLine(), highlightActiveLineGutter(), bracketMatching(), highlight,
+        LANGS[lvl.lang]?.() ?? [],
+        marks.length ? EditorView.decorations.of(Decoration.set(marks.map((m) => Decoration.mark({ class: m.cls }).range(m.from, m.to ?? m.from + 1)))) : [],
+        // 이동 과제는 텍스트 변경 금지: 목표 좌표가 밀리지 않게
+        isMove ? EditorState.transactionFilter.of((tr) => (tr.docChanged ? [] : tr)) : [],
+        // 한글 IME 상태로 NORMAL 모드에서 친 글자가 문서에 들어가지 않게
+        EditorState.transactionFilter.of((tr) => {
+          if (!imeKey || !tr.docChanged || getCM(view)?.state.vim.insertMode) return tr
+          let hangul = false
+          tr.changes.iterChanges((_a, _b, _c, _d, text) => { hangul ||= HANGUL.test(text.toString()) })
+          return hangul ? [] : tr
+        }),
+        EditorView.updateListener.of((u) => {
+          if (u.docChanged) { renderGoal(); renderBars() }
+          if (u.docChanged || u.selectionSet) {
+            renderPos()
+            const line = u.state.doc.lineAt(u.state.selection.main.head).number
+            // 업데이트 도중 dispatch 불가 → 마이크로태스크로 미룸
+            if (line !== curLine) { curLine = line; queueMicrotask(() => view.dispatch({ effects: relNumbers.reconfigure(numbersFor(line)) })) }
+            check()
+          }
+        }),
+      ],
+    }),
+  })
+
+  // 키 카운트 + 방향키/마우스/한글 입력 차단 (손가락을 홈row에 두는 습관)
+  view.dom.addEventListener('keydown', (e) => {
+    if (MODIFIERS.has(e.key) || done) return
+    const inEditor = e.target === view.contentDOM
+    if (inEditor && e.key.startsWith('Arrow')) {
+      e.preventDefault(); e.stopPropagation()
+      return msg('방향키 대신 h j k l 을 쓰세요', 'error')
+    }
+    imeKey = inEditor && !getCM(view).state.vim.insertMode && (e.isComposing || e.keyCode === 229 || HANGUL.test(e.key))
+    if (imeKey) {
+      e.preventDefault(); e.stopPropagation()
+      return msg('한/영 키로 영문 전환! NORMAL 모드 명령은 영문으로만 동작해요', 'error')
+    }
+    if (session && !session.t0) session.t0 = performance.now()
+    count++
+    keyLog.push(keyLabel(e))
+    queueMicrotask(() => renderStatus(getCM(view).state.vim.insertMode ? 'insert' : undefined))
+  }, true)
+  view.contentDOM.addEventListener('mousedown', (e) => { e.preventDefault(); view.focus(); msg('마우스 대신 키보드로 이동하세요', 'error') })
+  getCM(view).on('vim-mode-change', (e) => { renderStatus(e.subMode ? `${e.mode} ${e.subMode}` : e.mode); check() })
+
+  $('#desc').innerHTML = lvl.desc
+  $('#banner').hidden = true
+  renderGoal(); renderStatus('normal'); renderPos(); renderBars()
+  view.focus()
+}
+
+function startRound() {
+  mount(session.next())
+  $('#hint').hidden = true
+}
+
+function startMission(mission) {
+  clearInterval(session?.timer)
+  session = createSession(mission)
+  session.timer = setInterval(() => session.t0 && !done && renderStatus(), 100)
+  $('#chapter').textContent = 'missions · 10라운드 연속, 빠르고 적은 타수로'
+  $('#title').textContent = mission.title + (mission.daily ? ` (${ymd(new Date())})` : '')
+  $('#keychips').innerHTML = mission.keys.map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')
+  startRound()
+}
+
+function showDashboard() {
+  clearInterval(session?.timer)
+  session = null
+  level = null
+  view?.destroy()
+  view = null
+  $('#dashboard').hidden = false
+  $('#work').hidden = true
+  $('#mode').textContent = 'NORMAL'
+  $('#ll-chapter').textContent = '⎇ main'
+  $('#ll-file').textContent = 'dashboard'
+  $('#keys').innerHTML = ''
+  $('#count').textContent = ''
+  $('#pos').textContent = '1:1'
+  $('#buffers').innerHTML = buffers.map((b) => `<a class="buf" href="#${b}">${fileFor(b)}</a>`).join('')
+  renderNav()
+}
+
+function load(id) {
+  if (!id) return showDashboard()
+  $('#dashboard').hidden = true
+  $('#work').hidden = false
+  const known = id === 'sandbox' || levels.some((l) => l.id === id) || missions.some((m) => m.id === id)
+  if (!known) id = levels[0].id
+  if (!buffers.includes(id)) buffers.push(id)
+  if (buffers.length > 4) buffers.shift()
+  msg(`"${fileFor(id)}" — :colo <이름> 으로 테마 변경`)
+
+  const mission = missions.find((m) => m.id === id)
+  if (mission) { startMission(mission); return renderNav() }
+  clearInterval(session?.timer)
+  session = null
+  const lvl = levels.find((l) => l.id === id) ?? SANDBOX
+  $('#chapter').textContent = chapters.find((c) => c.id === lvl.chapter)?.title ?? 'playground'
+  $('#title').textContent = lvl.title
+  $('#keychips').innerHTML = lvl.keys.map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')
+  $('#hint').hidden = !lvl.solution
+  $('#hint-text').hidden = true
+  $('#hint-text').innerHTML = lvl.solution ? `<code>${escapeHtml(lvl.solution)}</code>` : ''
+  mount(lvl)
+  renderNav()
+}
+
+// alpha-nvim 로고: 박스 문자는 웹폰트마다 폭이 달라 깨지므로 칸 단위 그리드로 그림
+const LOGO = `███╗   ██╗██╗   ██╗██╗███╗   ███╗
+████╗  ██║██║   ██║██║████╗ ████║
+██╔██╗ ██║██║   ██║██║██╔████╔██║
+██║╚██╗██║╚██╗ ██╔╝██║██║╚██╔╝██║
+██║ ╚████║ ╚████╔╝ ██║██║ ╚═╝ ██║
+╚═╝  ╚═══╝  ╚═══╝  ╚═╝╚═╝     ╚═╝`
+$('#logo').innerHTML = LOGO.split('\n').map((row) => [...row.padEnd(33)].map((c) =>
+  `<i class="${c === '█' ? 'on' : c === ' ' ? '' : 'shade'}"></i>`).join('')).join('')
+
+// 대시보드 단축키 (alpha-nvim 처럼)
+const DASH_KEYS = { n: 'hjkl', d: 'mission-daily', m: 'mission-move', s: 'sandbox' }
+document.addEventListener('keydown', (e) => {
+  if ($('#dashboard').hidden || e.ctrlKey || e.metaKey || e.altKey) return
+  if (DASH_KEYS[e.key]) location.hash = DASH_KEYS[e.key]
+  if (e.key === 'c') cycleScheme()
+})
+$('#dash-scheme').onclick = (e) => { e.preventDefault(); cycleScheme() }
+
+$('#reset').onclick = () => (session ? startMission(session.mission) : load(level.id))
+$('#hint').onclick = () => { $('#hint-text').hidden = false; view.focus() }
+$('#menu').onclick = () => document.body.classList.toggle('nav-open')
+$('#nav').onclick = (e) => { if (e.target.closest('a')) document.body.classList.remove('nav-open') }
+window.addEventListener('hashchange', () => load(location.hash.slice(1)))
+load(location.hash.slice(1))
+
+// e2e 테스트용 훅
+window.__edu = {
+  levels, missions,
+  get done() { return done }, get count() { return count },
+  get level() { return level }, get session() { return session && { round: session.round, total: session.total } },
+}

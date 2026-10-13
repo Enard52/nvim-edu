@@ -1,0 +1,206 @@
+/* 레이아웃: 실제 Neovim 화면처럼 bufferline / neo-tree + 창 분할 / lualine + cmdline. 색은 전부 컬러스킴 토큰 */
+:root, [data-scheme='tokyonight'] {
+  color-scheme: dark;
+  --bg: #1a1b26; --bg-dark: #16161e; --bg-hl: #292e42; --visual: #283457;
+  --fg: #c0caf5; --fg-dim: #565f89; --border: #27a1b9; --line: #3b4261;
+  --blue: #7aa2f7; --cyan: #7dcfff; --green: #9ece6a; --magenta: #bb9af7;
+  --orange: #ff9e64; --red: #f7768e; --yellow: #e0af68;
+}
+[data-scheme='catppuccin'] {
+  color-scheme: dark;
+  --bg: #1e1e2e; --bg-dark: #181825; --bg-hl: #313244; --visual: #45475a;
+  --fg: #cdd6f4; --fg-dim: #6c7086; --border: #89b4fa; --line: #45475a;
+  --blue: #89b4fa; --cyan: #89dceb; --green: #a6e3a1; --magenta: #cba6f7;
+  --orange: #fab387; --red: #f38ba8; --yellow: #f9e2af;
+}
+[data-scheme='gruvbox'] {
+  color-scheme: dark;
+  --bg: #282828; --bg-dark: #1d2021; --bg-hl: #3c3836; --visual: #504945;
+  --fg: #ebdbb2; --fg-dim: #928374; --border: #a89984; --line: #504945;
+  --blue: #83a598; --cyan: #8ec07c; --green: #b8bb26; --magenta: #d3869b;
+  --orange: #fe8019; --red: #fb4934; --yellow: #fabd2f;
+}
+[data-scheme='tokyonight-day'] {
+  color-scheme: light;
+  --bg: #e1e2e7; --bg-dark: #d0d5e3; --bg-hl: #c4c8da; --visual: #b7c1e3;
+  --fg: #3760bf; --fg-dim: #848cb5; --border: #4094a3; --line: #a8aecb;
+  --blue: #2e7de9; --cyan: #007197; --green: #587539; --magenta: #9854f1;
+  --orange: #b15c00; --red: #f52a65; --yellow: #8c6c3e;
+}
+:root { --mono: 'JetBrains Mono', 'Nanum Gothic Coding', ui-monospace, Menlo, monospace; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.6 var(--mono);
+  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+}
+a { color: inherit; }
+code { color: var(--orange); }
+b { color: var(--blue); font-weight: 600; }
+.dim { color: var(--fg-dim); }
+button, select {
+  font: inherit; color: var(--fg); background: var(--bg-hl);
+  border: 1px solid transparent; border-radius: 0; padding: 2px 10px; cursor: pointer;
+}
+button:hover, button:focus-visible, select:focus-visible, a:focus-visible { outline: 1px solid var(--blue); }
+kbd {
+  display: inline-block; padding: 0 6px; font: 12px/1.6 var(--mono);
+  background: var(--bg-hl); color: var(--cyan);
+}
+
+/* ── bufferline ── */
+.bufferline {
+  display: flex; align-items: stretch; background: var(--bg-dark); min-width: 0;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.bufferline > * { display: flex; align-items: center; }
+.logo { white-space: nowrap; padding: 0 14px; font-weight: 800; text-decoration: none; background: var(--bg); }
+.logo span { color: var(--green); }
+#buffers { min-width: 0; overflow: hidden; }
+.buf { padding: 4px 14px; white-space: nowrap; color: var(--fg-dim); border-bottom: 2px solid transparent; }
+.buf.active { color: var(--fg); background: var(--bg); border-bottom-color: var(--blue); }
+.buf .mod { color: var(--green); }
+.spacer { flex: 1; }
+.scheme { gap: 6px; padding: 0 8px; color: var(--fg-dim); }
+.scheme select { background: var(--bg-hl); }
+.gh { padding: 0 14px; text-decoration: none; color: var(--fg-dim); }
+.gh:hover { color: var(--fg); }
+#menu { display: none; background: transparent; }
+
+/* ── neo-tree ── */
+.layout { display: grid; grid-template-columns: 280px 1fr; min-height: 0; }
+.tree { background: var(--bg-dark); overflow-y: auto; padding: 6px 0; border-right: 1px solid var(--bg-hl); }
+.tree .root { padding: 2px 12px 6px; color: var(--blue); font-weight: 600; }
+.tree .dir { padding: 2px 12px; color: var(--blue); }
+.tree .dir::before { content: '▾ '; color: var(--fg-dim); }
+.tree a {
+  display: flex; gap: 8px; padding: 1px 12px 1px 32px; text-decoration: none;
+  white-space: nowrap;
+}
+.tree a .name { overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.tree a .ico { color: var(--fg-dim); }
+.tree a.cleared .ico { color: var(--green); }
+.tree a.drill .ico { color: var(--orange); }
+.tree a .meta { color: var(--yellow); font-size: 12px; }
+.tree a:hover { background: var(--bg-hl); }
+.tree a.active { background: var(--visual); }
+
+/* ── main ── */
+main { overflow-y: auto; min-width: 0; padding: 12px 16px; }
+#work { display: grid; gap: 12px; position: relative; }
+.float {
+  position: relative; border: 1px solid var(--border); border-radius: 6px;
+  padding: 14px 16px 12px; background: var(--bg-dark);
+}
+.float-title {
+  position: absolute; top: -0.8em; left: 12px; padding: 0 6px;
+  background: var(--bg-dark); color: var(--border); font-size: 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 24px);
+}
+.help h2 { margin: 0 0 4px; font-size: 18px; color: var(--fg); text-wrap: balance; }
+.help p { margin: 0 0 10px; max-width: 75ch; font-family: var(--mono); }
+.help-foot { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.workspace { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--bg-hl); }
+.win { min-width: 0; display: flex; flex-direction: column; }
+.win + .win { border-left: 1px solid var(--line); }
+.winbar { padding: 2px 10px; background: var(--bg); color: var(--fg); font-size: 13px; border-bottom: 1px solid var(--bg-hl); white-space: nowrap; overflow: hidden; }
+.winbar .crumb { color: var(--fg-dim); }
+.winbar .mod { color: var(--green); }
+
+/* CodeMirror 를 nvim 창처럼 */
+#editor { flex: 1; }
+#editor .cm-editor { height: 100%; min-height: 300px; font-size: 15px; background: var(--bg); color: var(--fg); }
+#editor .cm-editor.cm-focused { outline: none; }
+#editor .cm-scroller { font-family: var(--mono); line-height: 1.5; }
+#editor .cm-content { caret-color: var(--fg); }
+#editor .cm-content::after { content: '~\A~\A~\A~'; white-space: pre; color: var(--line); display: block; margin-left: -2.6em; }
+#editor .cm-gutters { background: var(--bg); color: var(--line); border: 0; }
+#editor .cm-lineNumbers .cm-gutterElement { min-width: 3.2em; padding-right: 10px; }
+#editor .cm-activeLine { background: var(--bg-hl); }
+#editor .cm-activeLineGutter { background: var(--bg-hl); color: var(--orange); font-weight: 600; }
+#editor .cm-fat-cursor { background: var(--fg) !important; color: var(--bg) !important; }
+#editor .cm-cursor-primary { border-left-color: var(--fg); }
+#editor .cm-selectionBackground, #editor .cm-focused .cm-selectionBackground { background: var(--visual) !important; }
+#editor .cm-searchMatch { background: color-mix(in srgb, var(--yellow) 35%, transparent); }
+#editor .cm-matchingBracket { background: var(--line); color: var(--orange); }
+#editor .cm-panels { background: var(--bg-dark); color: var(--fg); border-top: 1px solid var(--bg-hl); font-family: var(--mono); }
+#editor .cm-panels input { font-family: var(--mono); color: var(--fg); }
+.cm-target, .target-sample { background: color-mix(in srgb, var(--green) 50%, transparent); }
+.cm-del { background: color-mix(in srgb, var(--red) 35%, transparent); text-decoration: line-through; }
+.cm-change { background: color-mix(in srgb, var(--yellow) 35%, transparent); }
+#editor.flash .cm-editor { box-shadow: inset 0 0 0 2px var(--green); }
+
+#goal { flex: 1; background: var(--bg); padding: 0 12px; font-size: 15px; min-height: 300px; overflow-x: auto; }
+#goal pre { margin: 0; line-height: 1.5; padding: 4px 0; font-family: var(--mono); }
+#goal pre::after { content: '~\A~\A~\A~'; color: var(--line); display: block; }
+#goal .ok { color: var(--fg-dim); }
+#goal .diff { color: var(--fg); background: color-mix(in srgb, var(--red) 12%, transparent); box-shadow: inset 2px 0 var(--red); padding-left: 8px; margin-left: -10px; }
+#goal p { margin: 8px 0; }
+
+/* nvim-notify 스타일 클리어 알림 */
+.notify {
+  position: fixed; top: 52px; right: 16px; z-index: 5; max-width: min(440px, calc(100vw - 32px));
+  border-color: var(--green); display: grid; gap: 8px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+.notify .float-title { color: var(--green); }
+.notify .stars { color: var(--yellow); font-size: 20px; letter-spacing: 3px; }
+.notify button { justify-self: end; background: var(--green); color: var(--bg-dark); font-weight: 600; }
+
+/* ── dashboard (alpha-nvim) ── */
+#dashboard { display: grid; justify-items: center; align-content: center; gap: 14px; min-height: 100%; text-align: center; padding-block: 24px; }
+#dashboard[hidden] { display: none; }
+.ascii { display: grid; grid-template-columns: repeat(33, var(--px)); --px: clamp(6px, 2.2vw, 13px); }
+.ascii i { height: calc(var(--px) * 1.9); }
+.ascii .on { background: var(--blue); }
+.ascii .shade { background: var(--line); transform: scale(0.55); }
+.tagline { margin: 0; color: var(--fg-dim); }
+.dash-menu { display: grid; gap: 2px; min-width: min(360px, 100%); }
+.dash-menu a {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  padding: 4px 10px; text-decoration: none; text-align: left;
+}
+.dash-menu a:hover, .dash-menu a:focus-visible { background: var(--bg-hl); outline: none; }
+.dash-menu .ico { color: var(--orange); }
+
+/* ── lualine + cmdline ── */
+footer { padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg); }
+.lualine { display: flex; align-items: stretch; background: var(--bg-dark); font-size: 13px; white-space: nowrap; min-width: 0; }
+.lualine > span { padding: 1px 10px; display: flex; align-items: center; }
+#mode {
+  font-weight: 800; color: var(--bg-dark); background: var(--blue);
+  padding-right: 18px; clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%);
+}
+#mode[data-mode^='insert'] { background: var(--green); }
+#mode[data-mode^='visual'] { background: var(--magenta); }
+#mode[data-mode^='replace'] { background: var(--red); }
+.ll-b { background: var(--bg-hl); color: var(--fg); }
+.ll-c { color: var(--fg-dim); overflow: hidden; }
+#keys { flex: 1; justify-content: flex-end; gap: 3px; overflow: hidden; min-width: 0; }
+#keys kbd { padding: 0 4px; font-size: 11px; }
+#count { color: var(--yellow); font-variant-numeric: tabular-nums; }
+#pos { background: var(--blue); color: var(--bg-dark); font-weight: 600; font-variant-numeric: tabular-nums; }
+#cmdline { min-height: 1.6em; padding: 0 10px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cmdline.error { color: var(--red); }
+#cmdline.ok { color: var(--green); }
+
+@media (max-width: 860px) {
+  .layout { grid-template-columns: 1fr; }
+  #menu { display: flex; }
+  .tree { display: none; }
+  body.nav-open .tree { display: block; position: fixed; inset: 36px 0 52px; z-index: 6; }
+  .workspace { grid-template-columns: 1fr; }
+  .win + .win { border-left: 0; border-top: 1px solid var(--line); }
+  #editor .cm-editor, #goal { min-height: 200px; }
+  .scheme span, .gh, #ll-chapter, #ll-file { display: none; }
+  .notify { top: auto; bottom: 64px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notify:not([hidden]) { animation: pop 0.18s ease-out; }
+  @keyframes pop { from { transform: translateY(-6px); opacity: 0.4; } }
+}
