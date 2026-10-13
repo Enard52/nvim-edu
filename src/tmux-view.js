@@ -1,4 +1,5 @@
 // tmux 상태 → HTML. 상태는 바꾸지 않는다.
+import { t } from './i18n.js'
 import { session, win, paneIds, windowName, copyLines, promptOf, selection } from './tmux.js'
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -69,7 +70,7 @@ export function renderTmux(s, el, opts = {}) {
       ? `<div class="t-chooser">${s.chooser.items.map((name, i) => {
           const x = s.sessions.find((y) => y.name === name)
           return `<div class="${i === s.chooser.index ? 't-row-sel' : ''}">(${i}) + ${esc(name)}: ${x.windows.length} windows${name === s.attached ? ' (attached)' : ''}</div>`
-        }).join('')}<div class="t-hint">j/k 이동 · Enter 선택 · q 닫기</div></div>`
+        }).join('')}<div class="t-hint">${t('j/k 이동 · Enter 선택 · q 닫기', 'j/k move · Enter select · q close')}</div></div>`
       : ''
     el.innerHTML = `<div class="t-panes">${panes}${chooser}</div><div class="t-status">${statusHtml(s)}</div>`
   }

@@ -35,6 +35,10 @@ jobs:
       - run: npm test
         env:
           BROWSER: ${{ matrix.browser }}
+      # 영어 화면: 모든 레벨 + 화면에 한글이 남지 않았는지
+      - run: npm run test:en
+        env:
+          BROWSER: ${{ matrix.browser }}
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request' && matrix.browser == 'chromium'
         with:

@@ -10,7 +10,8 @@ const page = await browser.newPage()
 let failed = 0
 
 const state = () => page.evaluate(() => ({ doc: document.querySelector('.cm-content').innerText, pos: document.querySelector('#pos').textContent }))
-async function open(id) { await page.goto(`${BASE}#${id}`); await page.reload(); await page.waitForSelector('.cm-content') }
+// 메시지 문구를 한국어로 검사하므로 언어 고정
+async function open(id) { await page.goto(`${BASE}?lang=ko#${id}`); await page.reload(); await page.waitForSelector('.cm-content') }
 function expect(label, actual, want) {
   const ok = JSON.stringify(actual) === JSON.stringify(want)
   if (!ok) failed++

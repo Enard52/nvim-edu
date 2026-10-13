@@ -12,6 +12,8 @@ const KEY = {
 const BASE = process.env.BASE_URL ?? 'http://localhost:4179/'
 const server = process.env.BASE_URL ? null : await preview({ preview: { port: 4179 } })
 const name = process.env.BROWSER ?? 'chromium'
+// UI_LANG=en 이면 영어 화면으로 (레벨 데이터도 node 쪽에서 같은 언어로 불러옴)
+const QS = process.env.UI_LANG ? `?lang=${process.env.UI_LANG}` : ''
 const browser = await pw[name].launch({ executablePath: name === 'chromium' ? process.env.CHROME_PATH || undefined : undefined })
 const page = await browser.newPage()
 let failed = 0
@@ -25,7 +27,7 @@ async function typeKeys(tokens) {
 }
 
 for (const level of levels) {
-  await page.goto(`${BASE}#${level.id}`)
+  await page.goto(`${BASE}${QS}#${level.id}`)
   await page.reload() // hash만 바뀌면 이전 레벨 상태가 남을 수 있어 새로 로드
   const tokens = tokenize(level.solution)
   await typeKeys(tokens)
@@ -42,7 +44,7 @@ for (const level of levels) {
 // 미션: 라운드마다 생성된 답안을 입력해 10라운드 완주 (랜덤이라 미션당 3회)
 for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-tmux', 'mission-daily']) {
   for (let run = 0; run < 3; run++) {
-    await page.goto(`${BASE}#${m}`)
+    await page.goto(`${BASE}${QS}#${m}`)
     await page.reload()
     let stuck = null
     for (let r = 0; r < 10 && !stuck; r++) {
@@ -52,8 +54,7 @@ for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-tm
       const s = await page.evaluate(() => ({ done: window.__edu.done, ...window.__edu.session }))
       if (r < 9 ? s.round !== r + 1 : !(s.done && s.round === 10)) stuck = `round ${r + 1}: ${sol}`
     }
-    const banner = await page.locator('#banner').innerText()
-    const ok = !stuck && banner.includes('한 번 더')
+    const ok = !stuck && (await page.locator('#banner').isVisible()) // 언어와 무관하게 완료 알림이 떴는지
     if (!ok) failed++
     console.log(`${ok ? 'PASS' : 'FAIL'} ${m} #${run + 1}${ok ? '' : ` ${stuck}\n${await page.locator('.cm-content, #term').first().innerText()}`}`)
   }

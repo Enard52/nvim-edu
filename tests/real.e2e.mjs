@@ -3,17 +3,20 @@ import { preview } from 'vite'
 import * as pw from 'playwright-core'
 import { levels, tokenize } from '../src/levels.js'
 
+const KEY_GAP = Number(process.env.KEY_GAP ?? 40)
 const KEY = { '<Esc>': 'Escape', '<CR>': 'Enter', '<C-a>': 'Control+a', '<C-v>': 'Control+v' }
 const BASE = process.env.BASE_URL ?? 'http://localhost:4171/'
 const server = process.env.BASE_URL ? null : await preview({ preview: { port: 4171 } })
 const name = process.env.BROWSER ?? 'chromium'
+// UI_LANG=en 이면 영어 화면으로 (레벨 데이터도 node 쪽에서 같은 언어로 불러옴)
+const QS = process.env.UI_LANG ? `?lang=${process.env.UI_LANG}` : ''
 const browser = await pw[name].launch()
 const page = await browser.newPage()
 page.on('pageerror', (e) => console.log('pageerror:', e.message))
 let failed = 0
 
 // 첫 방문: 서비스 워커 설치 후 한 번 새로고침되어 crossOriginIsolated 가 됨
-await page.goto(`${BASE}real/`)
+await page.goto(`${BASE}real/${QS}`)
 await page.waitForFunction(() => window.crossOriginIsolated, null, { timeout: 30000 })
 console.log(`${name}: crossOriginIsolated OK`)
 
@@ -22,7 +25,7 @@ if (name === 'webkit') {
   const p2 = await browser.newPage()
   const errors = []
   p2.on('pageerror', (e) => errors.push(e.message))
-  await p2.goto(`${BASE}real/#x`)
+  await p2.goto(`${BASE}real/${QS}#x`)
   await p2.waitForFunction(() => window.__real?.ready || document.querySelector('.fallback'), null, { timeout: 15000 })
   const r = await p2.evaluate(() => (window.__real.ready ? 'vim 실행' : 'fallback 안내'))
   const ok = errors.length === 0
@@ -33,13 +36,15 @@ if (name === 'webkit') {
 
 for (const level of levels.filter((l) => !l.kind)) {
   await page.goto('about:blank') // 해시만 바뀌면 페이지가 스스로 새로고침하므로, 깨끗하게 새로 연다
-  await page.goto(`${BASE}real/#${level.id}`)
+  await page.goto(`${BASE}real/${QS}#${level.id}`)
   await page.waitForFunction(() => window.__real?.ready && window.__real.state, null, { timeout: 30000 })
   await page.focus('#vim-input')
   const tokens = tokenize(level.solution)
+  // 사람 속도(키 사이 40ms)로 입력. 0ms 연타에서는 vim.wasm 이 키를 섞는 경우가 있었음(실측: df. 가 다른 결과)
   for (const t of tokens) {
     if (KEY[t]) await page.keyboard.press(KEY[t])
     else await page.keyboard.press(t === ' ' ? 'Space' : t)
+    await page.waitForTimeout(KEY_GAP)
   }
   await page.waitForFunction(() => window.__real.done, null, { timeout: 3000 }).catch(() => {})
   const { done, count, state } = await page.evaluate(() => ({ done: window.__real.done, count: window.__real.count, state: window.__real.state }))

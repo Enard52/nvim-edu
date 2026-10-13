@@ -6,6 +6,8 @@
 // lang: 'js' | 'py' | 'yaml' | undefined
 
 import { AGENT_LOG, win, pane, session, shape, paneIds } from './tmux.js'
+import { lang, t } from './i18n.js'
+import { EN } from './levels.en.js'
 
 export const chapters = [
   { id: 'move', title: '1. 이동' },
@@ -193,7 +195,7 @@ export const levels = [
     id: 'tmux-new', chapter: 'tmux', kind: 'tmux', title: '세션 만들기 tmux new',
     desc: 'AI 에이전트는 오래 돕니다. 터미널 창이 닫혀도 살아 있게 <b>tmux 세션</b> 안에서 돌리세요. <code>tmux new -s agent</code> 를 입력하고 Enter.',
     keys: ['tmux new -s 이름', 'tmux ls'],
-    init: () => ({ outer: ['# 에이전트를 돌릴 세션을 만들어 봅시다'] }),
+    init: () => ({ outer: [t('# 에이전트를 돌릴 세션을 만들어 봅시다', '# Create a session to run your agent in')] }),
     checks: [{ label: '<code>agent</code> 세션에 들어가기', test: (s) => s.attached === 'agent' }],
     solution: 'tmux new -s agent<CR>',
   },
@@ -300,7 +302,7 @@ export const levels = [
     id: 'tmux-boss', chapter: 'tmux', kind: 'tmux', title: '보스: 에이전트 작업판 세팅',
     desc: '처음부터 혼자: <code>work</code> 세션을 만들고, 거기서 에이전트를 실행(<code>claude</code>)한 뒤, 오른쪽에 쉘 pane 을 띄워 그쪽에 커서를 두세요.',
     keys: ['tmux new -s', 'claude', 'C-b %'],
-    init: () => ({ outer: ['# 출근했습니다. 작업판을 세팅하세요'] }),
+    init: () => ({ outer: [t('# 출근했습니다. 작업판을 세팅하세요', '# Morning! Set up your workspace')] }),
     checks: [
       { label: '<code>work</code> 세션', test: (s) => s.attached === 'work' },
       { label: '왼쪽 pane 에서 에이전트 실행 중', test: (s) => s.attached === 'work' && shape(win(s).layout) === 'h(p,p)' && s.panes[paneIds(win(s).layout)[0]].program === 'claude' },
@@ -310,6 +312,16 @@ export const levels = [
   },
 ]
 
+
+// 영어: 같은 id 의 필드를 levels.en.js 값으로 바꿈 (checks 는 라벨만)
+if (lang === 'en') {
+  for (const c of chapters) c.title = EN.chapters[c.id] ?? c.title
+  for (const l of levels) {
+    const { checks, ...rest } = EN.levels[l.id] ?? {}
+    Object.assign(l, rest)
+    if (checks) l.checks = l.checks.map((c, i) => ({ ...c, label: checks[i] ?? c.label }))
+  }
+}
 
 // '<Esc>jj' → ['<Esc>', 'j', 'j']
 export function tokenize(keys) {
