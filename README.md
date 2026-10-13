@@ -12,8 +12,9 @@ AI 에이전트(Claude Code, Codex …)를 tmux · 터미널에서 돌리다 보
 
 | 모드 | 내용 |
 |------|------|
-| **레벨** (22개) | 이동 → 편집 → 텍스트 오브젝트 → 비주얼·매크로 → 실전(`:%s`, `:g`, AI 코드 리뷰 반영). 모범 답안 타수(par) 대비 ★1~3 |
-| **미션** | 이동·삭제·변경 과제를 랜덤으로 10라운드 연속. 시간·타수 최고 기록 |
+| **레벨** (34개) | 이동 → 편집 → 텍스트 오브젝트 → 비주얼·매크로 → 실전(`:%s`, `:g`, AI 코드 리뷰 반영) → **tmux**. 모범 답안 타수(par) 대비 ★1~3 |
+| **tmux 챕터** | AI 에이전트를 터미널에서 돌릴 때 사람이 직접 쳐야 하는 키만: 세션 생성, 화면 분할, pane 이동, zoom, copy mode 로 출력 스크롤·에러 복사, 윈도우, detach/attach, 세션 전환 |
+| **미션** | 이동·삭제·변경·tmux 과제를 랜덤으로 10라운드 연속. 시간·타수 최고 기록 |
 | **오늘의 미션** | 날짜 시드라 모두 같은 문제. 연속 일수(🔥) 기록 |
 | **자유 연습장** | 목표 없이 아무거나 |
 
@@ -38,10 +39,13 @@ npm test         # 빌드 후 모든 레벨/미션을 실제 Chromium 으로 풀
 | 파일 | 역할 |
 |------|------|
 | `src/levels.js` | 레벨 데이터. `solution` 이 모범 답안이자 par(기준 타수) |
+| `src/tmux.js` | tmux 시뮬레이터 (순수 상태 머신: 세션/윈도우/pane 트리, prefix 키, vi copy mode, 미니 쉘) |
+| `src/tmux-view.js` | tmux 상태 → 화면 |
 | `src/drill.js` | 미션 라운드 생성기 (이동/줄 삭제/단어 삭제/단어 변경/괄호·따옴표 안 비우기) |
 | `src/main.js` | 에디터([CodeMirror 6](https://codemirror.net/) + [@replit/codemirror-vim](https://github.com/replit/codemirror-vim)), 채점, UI |
 | `src/style.css` | 컬러스킴 토큰 + nvim 스타일 레이아웃 |
-| `tests/levels.e2e.mjs` | 모든 레벨 답안·미션 120라운드를 실제 키 입력으로 검증 |
+| `tests/tmux.test.mjs` | tmux 상태 머신 단위 테스트 + 모든 tmux 레벨 답안 검증 (`node --test`) |
+| `tests/levels.e2e.mjs` | 모든 레벨 답안·미션 150라운드를 실제 키 입력으로 검증 |
 
 ## 레벨 추가하기
 
@@ -62,6 +66,7 @@ npm test         # 빌드 후 모든 레벨/미션을 실제 Chromium 으로 풀
 ## 알려진 한계
 
 - Vim 동작은 `@replit/codemirror-vim` 에뮬레이션이라 실제 Neovim 과 일부 다를 수 있습니다.
+- tmux 는 기본 키 바인딩만 흉내 낸 시뮬레이터입니다 (`C-b :` 명령 프롬프트, 마우스, 리사이즈 미지원).
 - 물리 키보드가 필요합니다 (모바일 터치 입력 미지원).
 - 진행 상황은 브라우저 localStorage 에만 저장됩니다.
 

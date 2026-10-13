@@ -204,3 +204,45 @@ footer { padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg)
   .notify:not([hidden]) { animation: pop 0.18s ease-out; }
   @keyframes pop { from { transform: translateY(-6px); opacity: 0.4; } }
 }
+
+/* ── tmux 시뮬레이터 ── */
+.term-wrap { border: 1px solid var(--bg-hl); display: flex; flex-direction: column; }
+#term {
+  height: 440px; display: grid; grid-template-rows: 1fr auto; background: var(--bg);
+  font: 14px/1.35 var(--mono); outline: none; cursor: text;
+}
+#term:focus { box-shadow: inset 0 0 0 1px var(--blue); }
+#term.flash { box-shadow: inset 0 0 0 2px var(--green); }
+.t-panes { position: relative; display: flex; min-height: 0; }
+.t-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.t-split.t-h { flex-direction: row; }
+.t-split.t-v { flex-direction: column; }
+.t-split.t-h > * + * { border-left: 1px solid var(--line); }
+.t-split.t-v > * + * { border-top: 1px solid var(--line); }
+.t-pane { flex: 1; position: relative; display: flex; min-width: 0; min-height: 0; }
+.t-active { box-shadow: inset 0 0 0 1px var(--green); }
+.t-target { box-shadow: inset 0 0 0 2px var(--orange); }
+.t-target::after { content: '여기'; position: absolute; bottom: 4px; right: 6px; background: var(--orange); color: var(--bg-dark); padding: 0 6px; font-size: 12px; }
+.t-scroll { flex: 1; overflow: hidden; padding: 2px 6px; white-space: pre; }
+.t-cur { background: var(--fg); color: var(--bg); }
+.t-sel { background: var(--visual); }
+.t-ccur { background: var(--yellow); color: var(--bg-dark); }
+.t-pos { position: absolute; top: 0; right: 0; background: var(--yellow); color: var(--bg-dark); padding: 0 6px; font-size: 12px; }
+.t-num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 72px; font-weight: 800; color: var(--blue); pointer-events: none; }
+.t-num-active { color: var(--red); }
+.t-status { display: flex; gap: 0; background: var(--green); color: var(--bg-dark); white-space: nowrap; overflow: hidden; padding: 0 6px; }
+.t-status .t-curwin { font-weight: 800; }
+.t-status .t-right { margin-left: auto; padding-left: 12px; }
+.t-status .t-msg { background: var(--yellow); margin: 0 -6px; padding: 0 6px; flex: 1; }
+.t-chooser { position: absolute; inset: 0; background: var(--bg); padding: 4px 8px; }
+.t-chooser .t-row-sel { background: var(--yellow); color: var(--bg-dark); }
+.t-chooser .t-hint { color: var(--fg-dim); margin-top: 8px; }
+.checks { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+.checks li::before { content: '☐ '; color: var(--fg-dim); }
+.checks li.ok { color: var(--green); }
+.checks li.ok::before { content: '☑ '; color: var(--green); }
+#mode[data-mode='prefix'] { background: var(--orange); }
+#mode[data-mode='copy'] { background: var(--yellow); }
+#mode[data-mode='prompt'] { background: var(--yellow); }
+#mode[data-mode='tmux'] { background: var(--green); }
+@media (max-width: 860px) { #term { height: 380px; font-size: 12px; } }

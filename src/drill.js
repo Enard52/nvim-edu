@@ -136,6 +136,7 @@ export const missions = [
   { id: 'mission-move', title: '이동 미션', kinds: ['move'], keys: ['w', 'b', 'e', 'f', 't', 'gg', 'G', '/'] },
   { id: 'mission-delete', title: '삭제 미션', kinds: ['deleteLine', 'deleteWord', 'deleteInside'], keys: ['dd', 'diw', 'dw', 'di"', 'di('] },
   { id: 'mission-change', title: '변경 미션', kinds: ['changeWord'], keys: ['ciw', 'cw', 'Esc'] },
+  { id: 'mission-tmux', title: 'tmux 미션', tmux: true, kinds: [], keys: ['C-b %', 'C-b "', 'C-b ←↑↓→', 'C-b z', 'C-b c', 'C-b 0~9'] },
   { id: 'mission-daily', title: '오늘의 미션', kinds: Object.keys(ROUNDS), keys: ['전부'], daily: true },
 ]
 

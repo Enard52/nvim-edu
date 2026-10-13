@@ -43,6 +43,7 @@
           <span class="float-title">도움말 · <span id="chapter"></span></span>
           <h2 id="title"></h2>
           <p id="desc"></p>
+          <ul id="checks" class="checks" hidden></ul>
           <div class="help-foot">
             <div id="keychips" class="chips"></div>
             <div class="actions">
@@ -61,6 +62,10 @@
             <div class="winbar"><span class="dim">goal</span> [RO] <span class="dim">— 빨간 줄은 아직 다른 곳</span></div>
             <div id="goal"></div>
           </div>
+        </div>
+        <div class="term-wrap" id="term-wrap" hidden>
+          <div class="winbar">terminal <span class="dim">— tmux 기본 설정 · prefix <kbd>Ctrl-b</kbd> · 클릭해서 포커스</span></div>
+          <div id="term" tabindex="0" aria-label="tmux 터미널 시뮬레이터"></div>
         </div>
         <div id="banner" class="float notify" hidden></div>
       </section>

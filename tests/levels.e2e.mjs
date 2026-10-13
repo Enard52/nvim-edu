@@ -3,7 +3,10 @@ import { preview } from 'vite'
 import { chromium } from 'playwright-core'
 import { levels, tokenize } from '../src/levels.js'
 
-const KEY = { '<Esc>': 'Escape', '<CR>': 'Enter', '<C-a>': 'Control+a', '<C-v>': 'Control+v' }
+const KEY = {
+  '<Esc>': 'Escape', '<CR>': 'Enter', '<C-a>': 'Control+a', '<C-v>': 'Control+v', '<C-b>': 'Control+b', '<C-u>': 'Control+u',
+  '<Left>': 'ArrowLeft', '<Right>': 'ArrowRight', '<Up>': 'ArrowUp', '<Down>': 'ArrowDown',
+}
 
 const server = await preview({ preview: { port: 4179 } })
 const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined })
@@ -26,7 +29,7 @@ for (const level of levels) {
   await page.waitForTimeout(50)
   const { done, count, text } = await page.evaluate(() => ({
     done: window.__edu.done, count: window.__edu.count,
-    text: document.querySelector('.cm-content').innerText,
+    text: (document.querySelector('.cm-content') ?? document.querySelector('#term')).innerText,
   }))
   const ok = done && count === tokens.length
   if (!ok) failed++
@@ -34,7 +37,7 @@ for (const level of levels) {
 }
 
 // 미션: 라운드마다 생성된 답안을 입력해 10라운드 완주 (랜덤이라 미션당 3회)
-for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-daily']) {
+for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-tmux', 'mission-daily']) {
   for (let run = 0; run < 3; run++) {
     await page.goto(`http://localhost:4179/#${m}`)
     await page.reload()
@@ -49,7 +52,7 @@ for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-da
     const banner = await page.locator('#banner').innerText()
     const ok = !stuck && banner.includes('한 번 더')
     if (!ok) failed++
-    console.log(`${ok ? 'PASS' : 'FAIL'} ${m} #${run + 1}${ok ? '' : ` ${stuck}\n${await page.locator('.cm-content').innerText()}`}`)
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${m} #${run + 1}${ok ? '' : ` ${stuck}\n${await page.locator('.cm-content, #term').first().innerText()}`}`)
   }
 }
 

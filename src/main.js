@@ -7,7 +7,9 @@ import { python } from '@codemirror/lang-python'
 import { yaml } from '@codemirror/lang-yaml'
 import { vim, getCM, Vim } from '@replit/codemirror-vim'
 import { chapters, levels, tokenize, stars } from './levels.js'
-import { missions, createSession, streak, ymd } from './drill.js'
+import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
+import { createTmux, press as tmuxPress, tmuxTask, AGENT_LOG } from './tmux.js'
+import { renderTmux, tmuxMode, tmuxTarget } from './tmux-view.js'
 import './style.css'
 
 const LANGS = { js: javascript, py: python, yaml }
@@ -47,6 +49,7 @@ const buffers = [] // 최근 연 화면들 (bufferline)
 
 let view, level, count, keyLog, done
 let session = null // 미션 진행 중일 때만
+let tm = null // tmux 시뮬레이터 상태 (tmux 레벨/미션일 때만)
 let imeKey = false // 직전 키가 NORMAL 모드 한글 IME 입력이었나 (:s/x/한글/ 같은 정상 입력은 막지 않게)
 const relNumbers = new Compartment()
 
@@ -59,7 +62,7 @@ function setScheme(name) {
   msg(`colorscheme ${name}`, 'ok')
 }
 $('#scheme').innerHTML = SCHEMES.map((s) => `<option>${s}</option>`).join('')
-$('#scheme').onchange = (e) => { setScheme(e.target.value); view?.focus() }
+$('#scheme').onchange = (e) => { setScheme(e.target.value); focusMain() }
 setScheme(store.get('scheme', null) ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'tokyonight-day' : 'tokyonight'))
 const cycleScheme = () => setScheme(SCHEMES[(SCHEMES.indexOf($('#scheme').value) + 1) % SCHEMES.length])
 
@@ -91,6 +94,7 @@ const fileFor = (id) => {
   if (id === 'sandbox') return SANDBOX.file
   if (missions.some((m) => m.id === id)) return `${id.replace('mission-', '')}.drill`
   const l = levels.find((x) => x.id === id)
+  if (l?.kind === 'tmux') return `${id}.tmux`
   return `${id}.${EXT[l?.lang] ?? 'txt'}`
 }
 const currentId = () => session?.mission.id ?? level?.id
@@ -190,11 +194,12 @@ function levelCleared() {
 
 function roundCleared() {
   session.keys += count
-  session.cursor = view.state.selection.main.head
+  if (view) session.cursor = view.state.selection.main.head
   session.round++
-  $('#editor').classList.add('flash')
-  setTimeout(() => $('#editor').classList.remove('flash'), 250)
-  if (session.round < session.total) return setTimeout(() => startRound(), 250)
+  const box = session.tmux ? '#term' : '#editor'
+  $(box).classList.add('flash')
+  setTimeout(() => $(box).classList.remove('flash'), 250)
+  if (session.round < session.total) return setTimeout(() => (session.tmux ? nextTmuxRound() : startRound()), 250)
 
   const time = (performance.now() - session.t0) / 1000
   const id = session.mission.id
@@ -227,6 +232,8 @@ function mount(lvl) {
   keyLog = []
   done = false
   view?.destroy()
+  tm = null
+  showWorkspace('vim')
 
   const state = EditorState.create({ doc: lvl.start })
   const marks = lvl.marks ?? (lvl.goal?.cursor ? [{ from: posOf(state, lvl.goal.cursor), cls: 'cm-target' }] : [])
@@ -301,6 +308,7 @@ function startRound() {
 }
 
 function startMission(mission) {
+  if (mission.tmux) return startTmuxMission(mission)
   clearInterval(session?.timer)
   session = createSession(mission)
   session.timer = setInterval(() => session.t0 && !done && renderStatus(), 100)
@@ -310,12 +318,85 @@ function startMission(mission) {
   startRound()
 }
 
+// ── tmux ──
+const showWorkspace = (kind) => {
+  $('.workspace').hidden = kind === 'tmux'
+  $('#term-wrap').hidden = kind !== 'tmux'
+  $('#checks').hidden = kind !== 'tmux'
+}
+const focusMain = () => (tm ? $('#term').focus() : view?.focus())
+
+function renderTerm() {
+  renderTmux(tm, $('#term'), { target: level.target })
+  $('#pos').textContent = tmuxTarget(tm)
+  $('#checks').innerHTML = level.checks.map((c) => `<li class="${c.test(tm) ? 'ok' : ''}">${c.label}</li>`).join('')
+}
+
+function mountTmux(lvl) {
+  level = lvl
+  count = 0
+  keyLog = []
+  done = false
+  view?.destroy()
+  view = null
+  if (lvl.init) tm = createTmux(lvl.init())
+  tm.lastAction = null
+  showWorkspace('tmux')
+  $('#desc').innerHTML = lvl.desc
+  $('#banner').hidden = true
+  renderTerm(); renderStatus(tmuxMode(tm)); renderBars()
+  $('#term').focus()
+}
+
+function checkTmux() {
+  if (done || !level.checks.every((c) => c.test(tm))) return
+  done = true
+  session ? roundCleared() : levelCleared()
+}
+
+function startTmuxMission(mission) {
+  clearInterval(session?.timer)
+  session = { mission, total: 10, round: 0, keys: 0, t0: null, tmux: true, rng: rngFrom(Date.now()) }
+  session.timer = setInterval(() => session.t0 && !done && renderStatus(), 100)
+  tm = createTmux({ attached: 'drill', sessions: [{ name: 'drill', windows: [{ panes: [{ program: 'claude', lines: AGENT_LOG }] }] }] })
+  $('#chapter').textContent = 'missions · 10라운드 연속, 빠르고 적은 타수로'
+  $('#title').textContent = mission.title
+  nextTmuxRound()
+}
+
+function nextTmuxRound() {
+  const task = tmuxTask(session.rng, tm)
+  $('#keychips').innerHTML = task.keys.map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')
+  $('#hint').hidden = true
+  mountTmux({ kind: 'tmux', desc: task.desc, solution: task.solution, target: task.target, checks: [{ label: task.desc, test: task.test }] })
+  $('#checks').hidden = true // 미션은 설명 한 줄이 곧 목표
+}
+
+const TKEYS = { Enter: 'Enter', Escape: 'Escape', Backspace: 'Backspace', ArrowLeft: 'Left', ArrowRight: 'Right', ArrowUp: 'Up', ArrowDown: 'Down' }
+const TLABEL = { ' ': '␣', Enter: '⏎', Escape: 'Esc', Backspace: '⌫', Left: '←', Right: '→', Up: '↑', Down: '↓' }
+$('#term').addEventListener('keydown', (e) => {
+  if (!tm || done || e.metaKey || e.altKey || MODIFIERS.has(e.key)) return
+  if (e.isComposing || e.keyCode === 229 || HANGUL.test(e.key)) {
+    e.preventDefault()
+    return msg('한/영 키로 영문 전환! 터미널 키는 영문으로만 동작해요', 'error')
+  }
+  const k = e.ctrlKey ? (e.key.length === 1 ? `C-${e.key.toLowerCase()}` : null) : TKEYS[e.key] ?? (e.key.length === 1 ? e.key : null)
+  if (!k) return
+  e.preventDefault() // C-b(굵게/북마크), 방향키 스크롤 등 브라우저 기본 동작 막기
+  if (session && !session.t0) session.t0 = performance.now()
+  count++
+  keyLog.push(TLABEL[k] ?? k)
+  tmuxPress(tm, k)
+  renderTerm(); renderStatus(tmuxMode(tm)); checkTmux()
+})
+
 function showDashboard() {
   clearInterval(session?.timer)
   session = null
   level = null
   view?.destroy()
   view = null
+  tm = null
   $('#dashboard').hidden = false
   $('#work').hidden = true
   $('#mode').textContent = 'NORMAL'
@@ -349,7 +430,7 @@ function load(id) {
   $('#hint').hidden = !lvl.solution
   $('#hint-text').hidden = true
   $('#hint-text').innerHTML = lvl.solution ? `<code>${escapeHtml(lvl.solution)}</code>` : ''
-  mount(lvl)
+  lvl.kind === 'tmux' ? mountTmux(lvl) : mount(lvl)
   renderNav()
 }
 
@@ -373,7 +454,7 @@ document.addEventListener('keydown', (e) => {
 $('#dash-scheme').onclick = (e) => { e.preventDefault(); cycleScheme() }
 
 $('#reset').onclick = () => (session ? startMission(session.mission) : load(level.id))
-$('#hint').onclick = () => { $('#hint-text').hidden = false; view.focus() }
+$('#hint').onclick = () => { $('#hint-text').hidden = false; focusMain() }
 $('#menu').onclick = () => document.body.classList.toggle('nav-open')
 $('#nav').onclick = (e) => { if (e.target.closest('a')) document.body.classList.remove('nav-open') }
 window.addEventListener('hashchange', () => load(location.hash.slice(1)))
