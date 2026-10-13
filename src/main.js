@@ -1,11 +1,12 @@
 import { EditorView, lineNumbers, drawSelection, highlightActiveLine, highlightActiveLineGutter, Decoration } from '@codemirror/view'
-import { EditorState, Compartment } from '@codemirror/state'
+import { EditorState, Compartment, Prec } from '@codemirror/state'
+import { history } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting, bracketMatching } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
 import { yaml } from '@codemirror/lang-yaml'
-import { vim, getCM, Vim } from '@replit/codemirror-vim'
+import { vim, getCM, Vim, CodeMirror } from '@replit/codemirror-vim'
 import { chapters, levels, tokenize, stars } from './levels.js'
 import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
 import { createTmux, press as tmuxPress, tmuxTask, AGENT_LOG } from './tmux.js'
@@ -50,7 +51,6 @@ const buffers = [] // 최근 연 화면들 (bufferline)
 let view, level, count, keyLog, done
 let session = null // 미션 진행 중일 때만
 let tm = null // tmux 시뮬레이터 상태 (tmux 레벨/미션일 때만)
-let imeKey = false // 직전 키가 NORMAL 모드 한글 IME 입력이었나 (:s/x/한글/ 같은 정상 입력은 막지 않게)
 const relNumbers = new Compartment()
 
 // ── 컬러스킴 ──
@@ -65,6 +65,45 @@ $('#scheme').innerHTML = SCHEMES.map((s) => `<option>${s}</option>`).join('')
 $('#scheme').onchange = (e) => { setScheme(e.target.value); focusMain() }
 setScheme(store.get('scheme', null) ?? (matchMedia('(prefers-color-scheme: light)').matches ? 'tokyonight-day' : 'tokyonight'))
 const cycleScheme = () => setScheme(SCHEMES[(SCHEMES.indexOf($('#scheme').value) + 1) % SCHEMES.length])
+
+// f/F 가 글자를 못 찾으면 실제 Vim 처럼 아무 일도 없어야 함.
+// 원본은 제자리를 반환해서 df{없는 글자} 가 커서 아래 글자를 지움 (@replit/codemirror-vim 6.4.0)
+Vim.defineMotion('moveToCharacter', (cm, head, args) => {
+  Object.assign(Vim.getVimGlobalState_().lastCharacterSearch, { increment: 0, forward: args.forward, selectedCharacter: args.selectedCharacter })
+  const line = cm.getLine(head.line)
+  let idx = head.ch
+  for (let i = 0; i < args.repeat; i++) {
+    if (!args.forward && idx === 0) return null
+    idx = args.forward ? line.indexOf(args.selectedCharacter, idx + 1) : line.lastIndexOf(args.selectedCharacter, idx - 1)
+    if (idx === -1) return null
+  }
+  return new CodeMirror.Pos(head.line, idx)
+})
+
+// NORMAL 모드에서 한글 IME 로 조합된 글자는 문서에 넣지 않고 조합 자체를 끝낸다.
+// (트랜잭션을 거부하는 방식은 브라우저의 조합 상태와 어긋나서 커서가 튀고 다음 영문 키가 글자로 들어갔음)
+const FIREFOX_LINUX = /Firefox/.test(navigator.userAgent) && /Linux/.test(navigator.platform)
+function endComposition(view) {
+  if (FIREFOX_LINUX) {
+    view.contentDOM.textContent = '\0\0' // vim 확장이 이 값을 무시하도록 되어 있음
+    view.contentDOM.dispatchEvent(new CustomEvent('compositionend'))
+    return
+  }
+  // @replit/codemirror-vim 의 forceEndComposition 과 같은 방식: DOM 을 떼었다 붙여 조합을 강제로 끝냄
+  const parent = view.scrollDOM.parentElement
+  const next = view.scrollDOM.nextSibling
+  view.scrollDOM.remove()
+  parent.insertBefore(view.scrollDOM, next)
+  view.focus()
+  view.contentDOM.dispatchEvent(new CustomEvent('compositionend'))
+}
+const blockHangul = Prec.highest(EditorView.inputHandler.of((view, _from, _to, text) => {
+  if (getCM(view)?.state.vim.insertMode || !HANGUL.test(text)) return false
+  msg('한/영 키로 영문 전환! NORMAL 모드 명령은 영문으로만 동작해요', 'error')
+  // 핸들러 안에서 DOM 을 건드리면 진행 중인 업데이트와 충돌하므로 다음 틱에
+  setTimeout(() => endComposition(view))
+  return true
+}))
 
 Vim.defineEx('colorscheme', 'colo', (_cm, p) => (p.args?.[0] ? setScheme(p.args[0]) : msg(`${$('#scheme').value} — 사용 가능: ${SCHEMES.join(' ')}`)))
 Vim.defineEx('quit', 'q', () => msg('E37: 여기선 :q 로 탈출할 수 없습니다. 계속 연습하세요 :)', 'error'))
@@ -254,13 +293,8 @@ function mount(lvl) {
         marks.length ? EditorView.decorations.of(Decoration.set(marks.map((m) => Decoration.mark({ class: m.cls }).range(m.from, m.to ?? m.from + 1)))) : [],
         // 이동 과제는 텍스트 변경 금지: 목표 좌표가 밀리지 않게
         isMove ? EditorState.transactionFilter.of((tr) => (tr.docChanged ? [] : tr)) : [],
-        // 한글 IME 상태로 NORMAL 모드에서 친 글자가 문서에 들어가지 않게
-        EditorState.transactionFilter.of((tr) => {
-          if (!imeKey || !tr.docChanged || getCM(view)?.state.vim.insertMode) return tr
-          let hangul = false
-          tr.changes.iterChanges((_a, _b, _c, _d, text) => { hangul ||= HANGUL.test(text.toString()) })
-          return hangul ? [] : tr
-        }),
+        history(), // u / Ctrl-r 이 동작하려면 필요
+        blockHangul,
         EditorView.updateListener.of((u) => {
           if (u.docChanged) { renderGoal(); renderBars() }
           if (u.docChanged || u.selectionSet) {
@@ -283,8 +317,7 @@ function mount(lvl) {
       e.preventDefault(); e.stopPropagation()
       return msg('방향키 대신 h j k l 을 쓰세요', 'error')
     }
-    imeKey = inEditor && !getCM(view).state.vim.insertMode && (e.isComposing || e.keyCode === 229 || HANGUL.test(e.key))
-    if (imeKey) {
+    if (inEditor && !getCM(view).state.vim.insertMode && (e.isComposing || e.keyCode === 229 || HANGUL.test(e.key))) {
       e.preventDefault(); e.stopPropagation()
       return msg('한/영 키로 영문 전환! NORMAL 모드 명령은 영문으로만 동작해요', 'error')
     }
