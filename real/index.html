@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko" data-scheme="tokyonight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>nvim-edu · 진짜 Vim</title>
+  <!-- COOP/COEP 를 서비스 워커로 붙임 (SharedArrayBuffer 필요). 첫 방문엔 한 번 새로고침됨 -->
+  <script src="coi-serviceworker.js"></script>
+</head>
+<body class="real">
+  <header class="bufferline">
+    <a href="../" class="logo"><span>nvim</span>-edu</a>
+    <span class="buf active">진짜 Vim 8.2 <span class="dim">(beta)</span></span>
+    <span class="spacer"></span>
+    <label class="scheme"><span>레벨</span>
+      <select id="level" aria-label="레벨 선택"></select>
+    </label>
+    <a class="gh" id="back" href="../">에뮬레이터로 ←</a>
+  </header>
+  <main>
+    <div class="float help">
+      <span class="float-title">도움말 · <span id="chapter"></span></span>
+      <h2 id="title"></h2>
+      <p id="desc"></p>
+      <ul id="checks" class="checks"></ul>
+      <div class="help-foot">
+        <div id="keychips" class="chips"></div>
+        <div class="actions">
+          <button id="reset">↺ 처음부터</button>
+          <button id="hint">? 모범 답안</button>
+          <span id="hint-text" hidden></span>
+        </div>
+      </div>
+    </div>
+    <p class="dim real-note">브라우저 안에서 <b>진짜 Vim</b>(vim.wasm, Vim 8.2)이 돌아갑니다. 에뮬레이터와 달리 모든 명령이 실제와 같습니다. 화면을 클릭하면 입력을 받습니다.</p>
+    <div class="workspace">
+      <div class="win">
+        <div class="winbar" id="winbar">vim</div>
+        <div class="vim-box" id="vim-box">
+          <canvas id="vim-canvas"></canvas>
+          <input id="vim-input" autocomplete="off" autofocus aria-label="Vim 입력" />
+          <div id="vim-loading" class="vim-loading">진짜 Vim 불러오는 중… (처음 한 번 약 7MB)</div>
+        </div>
+      </div>
+      <div class="win">
+        <div class="winbar"><span class="dim">goal</span> [RO]</div>
+        <div id="goal"></div>
+      </div>
+    </div>
+    <div id="banner" class="float notify" hidden></div>
+  </main>
+  <footer>
+    <div class="lualine">
+      <span id="mode" data-mode="normal">NORMAL</span>
+      <span class="ll-b">⎇ real vim</span>
+      <span id="keys"></span>
+      <span class="ll-b" id="count"></span>
+      <span id="pos">1:1</span>
+    </div>
+    <div id="cmdline" role="status"></div>
+  </footer>
+  <script type="module" src="../src/real.js"></script>
+</body>
+</html>

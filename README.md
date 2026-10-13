@@ -17,6 +17,7 @@ AI 에이전트(Claude Code, Codex …)를 tmux · 터미널에서 돌리다 보
 | **미션** | 이동·삭제·변경·tmux 과제를 랜덤으로 10라운드 연속. 시간·타수 최고 기록 |
 | **오늘의 미션** | 날짜 시드라 모두 같은 문제. 연속 일수(🔥) 기록 |
 | **자유 연습장** | 목표 없이 아무거나 |
+| **진짜 Vim 모드** (beta) | 브라우저 안에서 실제 Vim 8.2([vim.wasm](https://github.com/rhysd/vim.wasm))로 같은 레벨을 풂. Neovim 기본값(`nostartofline`, `nrformats=bin,hex`, `Y`=`y$` …)으로 맞춤 |
 
 Neovim 같은 화면: neo-tree 사이드바, bufferline, lualine, cmdline 메시지, 상대 줄 번호, `~`,
 `:colorscheme tokyonight | catppuccin | gruvbox | tokyonight-day`.
@@ -34,6 +35,17 @@ npm test         # 빌드 후 모든 레벨/미션을 실제 Chromium 으로 풀
 `npm test` 는 Playwright 브라우저가 필요합니다: `npx playwright-core install chromium`
 (이미 받아 둔 Chrome 이 있으면 `CHROME_PATH=/path/to/chrome npm test`).
 
+## 실제 Neovim 과 같은가?
+
+빠른 레벨은 [@replit/codemirror-vim](https://github.com/replit/codemirror-vim) 에뮬레이터로 돌고, 차이는 **실제 Neovim 을 정답지로** 잡아 냅니다.
+
+- `tests/nvim-diff.mjs` 가 같은 키 입력(`:help` 의 자주 쓰는 명령 + 모든 레벨 답안, 173개)을 `nvim --headless` 와 사이트 에디터에 넣고 텍스트·커서·모드를 비교합니다. CI 에서 Neovim 0.11.0 으로 매번 실행합니다.
+- 처음엔 169개 중 39개가 달랐고, 에뮬레이터를 고쳐 지금은 **173/173 일치**합니다. 수정 내용은 `patches/` (patch-package) 에 있습니다.
+
+```bash
+npm run test:nvim   # nvim 이 PATH 에 있어야 함
+```
+
 ## 구조
 
 | 파일 | 역할 |
@@ -42,9 +54,14 @@ npm test         # 빌드 후 모든 레벨/미션을 실제 Chromium 으로 풀
 | `src/tmux.js` | tmux 시뮬레이터 (순수 상태 머신: 세션/윈도우/pane 트리, prefix 키, vi copy mode, 미니 쉘) |
 | `src/tmux-view.js` | tmux 상태 → 화면 |
 | `src/drill.js` | 미션 라운드 생성기 (이동/줄 삭제/단어 삭제/단어 변경/괄호·따옴표 안 비우기) |
+| `src/real.js`, `real/index.html` | 진짜 Vim 모드. 상태는 Vim 의 `titlestring` 으로 받음 (명령 도중 JS 가 끼어들면 Vim 이 멈춤) |
+| `patches/` | 에뮬레이터 수정 (실제 Neovim 과 맞추기) |
 | `src/main.js` | 에디터([CodeMirror 6](https://codemirror.net/) + [@replit/codemirror-vim](https://github.com/replit/codemirror-vim)), 채점, UI |
 | `src/style.css` | 컬러스킴 토큰 + nvim 스타일 레이아웃 |
 | `tests/tmux.test.mjs` | tmux 상태 머신 단위 테스트 + 모든 tmux 레벨 답안 검증 (`node --test`) |
+| `tests/nvim-diff.mjs` | 실제 Neovim 과 비교 |
+| `tests/regress.e2e.mjs` | 실사용에서 나온 버그 재발 방지 (undo, 한글 IME 등) |
+| `tests/real.e2e.mjs` | 진짜 Vim 모드로 모든 레벨을 풀어 봄 |
 | `tests/levels.e2e.mjs` | 모든 레벨 답안·미션 150라운드를 실제 키 입력으로 검증 |
 
 ## 레벨 추가하기
@@ -67,6 +84,7 @@ npm test         # 빌드 후 모든 레벨/미션을 실제 Chromium 으로 풀
 
 - Vim 동작은 `@replit/codemirror-vim` 에뮬레이션이라 실제 Neovim 과 일부 다를 수 있습니다.
 - tmux 는 기본 키 바인딩만 흉내 낸 시뮬레이터입니다 (`C-b :` 명령 프롬프트, 마우스, 리사이즈 미지원).
+- 진짜 Vim 모드는 `SharedArrayBuffer` 가 필요합니다. GitHub Pages 는 COOP/COEP 헤더를 못 붙여서 [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) 로 우회하는데, **Safari 에서는 이 우회가 안정적으로 동작하지 않아** 안내 문구가 뜹니다 (헤더를 붙일 수 있는 호스팅으로 옮기면 해결). 첫 로딩에 약 7MB 를 받습니다.
 - 물리 키보드가 필요합니다 (모바일 터치 입력 미지원).
 - 진행 상황은 브라우저 localStorage 에만 저장됩니다.
 

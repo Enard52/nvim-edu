@@ -383,6 +383,7 @@ function startRound() {
 }
 
 function startMission(mission) {
+  $('#real-link').hidden = true
   if (mission.tmux) return startTmuxMission(mission)
   clearInterval(session?.timer)
   session = createSession(mission)
@@ -505,6 +506,9 @@ function load(id) {
   $('#hint').hidden = !lvl.solution
   $('#hint-text').hidden = true
   $('#hint-text').innerHTML = lvl.solution ? `<code>${escapeHtml(lvl.solution)}</code>` : ''
+  // 같은 레벨을 진짜 Vim(vim.wasm)으로 — tmux 레벨은 해당 없음
+  $('#real-link').hidden = lvl.kind === 'tmux'
+  $('#real-link').href = `real/#${lvl.id}`
   lvl.kind === 'tmux' ? mountTmux(lvl) : mount(lvl)
   renderNav()
 }
@@ -525,6 +529,7 @@ document.addEventListener('keydown', (e) => {
   if ($('#dashboard').hidden || e.ctrlKey || e.metaKey || e.altKey) return
   if (DASH_KEYS[e.key]) location.hash = DASH_KEYS[e.key]
   if (e.key === 'c') cycleScheme()
+  if (e.key === 'r') location.href = 'real/'
 })
 $('#dash-scheme').onclick = (e) => { e.preventDefault(); cycleScheme() }
 
