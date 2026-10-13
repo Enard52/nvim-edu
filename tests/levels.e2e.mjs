@@ -1,6 +1,6 @@
 // 모든 레벨의 모범 답안을 실제 브라우저에서 입력해 클리어되는지, 타수가 par와 같은지 검증
 import { preview } from 'vite'
-import { chromium } from 'playwright-core'
+import * as pw from 'playwright-core'
 import { levels, tokenize } from '../src/levels.js'
 
 const KEY = {
@@ -8,8 +8,11 @@ const KEY = {
   '<Left>': 'ArrowLeft', '<Right>': 'ArrowRight', '<Up>': 'ArrowUp', '<Down>': 'ArrowDown',
 }
 
-const server = await preview({ preview: { port: 4179 } })
-const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined })
+// BASE_URL 을 주면 배포된 사이트를, 아니면 로컬 빌드를 검증. BROWSER=chromium|firefox|webkit
+const BASE = process.env.BASE_URL ?? 'http://localhost:4179/'
+const server = process.env.BASE_URL ? null : await preview({ preview: { port: 4179 } })
+const name = process.env.BROWSER ?? 'chromium'
+const browser = await pw[name].launch({ executablePath: name === 'chromium' ? process.env.CHROME_PATH || undefined : undefined })
 const page = await browser.newPage()
 let failed = 0
 
@@ -22,7 +25,7 @@ async function typeKeys(tokens) {
 }
 
 for (const level of levels) {
-  await page.goto(`http://localhost:4179/#${level.id}`)
+  await page.goto(`${BASE}#${level.id}`)
   await page.reload() // hash만 바뀌면 이전 레벨 상태가 남을 수 있어 새로 로드
   const tokens = tokenize(level.solution)
   await typeKeys(tokens)
@@ -39,7 +42,7 @@ for (const level of levels) {
 // 미션: 라운드마다 생성된 답안을 입력해 10라운드 완주 (랜덤이라 미션당 3회)
 for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-tmux', 'mission-daily']) {
   for (let run = 0; run < 3; run++) {
-    await page.goto(`http://localhost:4179/#${m}`)
+    await page.goto(`${BASE}#${m}`)
     await page.reload()
     let stuck = null
     for (let r = 0; r < 10 && !stuck; r++) {
@@ -57,5 +60,6 @@ for (const m of ['mission-move', 'mission-delete', 'mission-change', 'mission-tm
 }
 
 await browser.close()
-server.httpServer.close()
+server?.httpServer.close()
+console.log(`${name} ${BASE}: ${failed ? `${failed} FAIL` : 'ALL PASS'}`)
 process.exit(failed ? 1 : 0)

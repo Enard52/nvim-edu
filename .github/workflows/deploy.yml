@@ -17,29 +17,36 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # ubuntu-latest 가 Ubuntu 26 으로 바뀌어도 브라우저 의존성 설치가 깨지지 않게 고정
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright-core install --with-deps chromium
-      # 모든 레벨 모범 답안 + 미션 120라운드를 실제 브라우저로 검증
+      - run: npx playwright-core install --with-deps ${{ matrix.browser }}
+      # tmux 상태 머신 단위 테스트 + 모든 레벨 답안 + 미션 150라운드를 실제 브라우저로 검증
       - run: npm test
-      - uses: actions/upload-pages-artifact@v3
-        if: github.event_name != 'pull_request'
+        env:
+          BROWSER: ${{ matrix.browser }}
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request' && matrix.browser == 'chromium'
         with:
           path: dist
 
   deploy:
     if: github.event_name != 'pull_request'
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
