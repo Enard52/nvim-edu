@@ -1,0 +1,347 @@
+diff --git a/node_modules/@replit/codemirror-vim-core/vim.js b/node_modules/@replit/codemirror-vim-core/vim.js
+index 3cafa6b..dd1808f 100644
+--- a/node_modules/@replit/codemirror-vim-core/vim.js
++++ b/node_modules/@replit/codemirror-vim-core/vim.js
+@@ -2043,6 +2043,8 @@ export function initVim(CM) {
+         var motionResult = motions[motion](cm, origHead, motionArgs, vim, inputState);
+         vim.lastMotion = motions[motion];
+         if (!motionResult) {
++          // nvim-edu: Vim 처럼 매크로 재생 중 이동이 실패하면 매크로를 멈춤
++          if (vimGlobalState.macroModeState.isPlaying) vimGlobalState.macroModeState.aborted = true;
+           return;
+         }
+         if (motionArgs.toJumplist) {
+@@ -2185,6 +2187,7 @@ export function initVim(CM) {
+         operatorArgs.registerName = registerName;
+         // Keep track of linewise as it affects how paste and change behave.
+         operatorArgs.linewise = linewise;
++        operatorArgs.origCh = origHead.ch; // nvim-edu: nostartofline 용 원래 커서 열
+         var operatorMoveTo = operators[operator](
+           cm, operatorArgs, cmSel.ranges, oldAnchor, newHead);
+         if (vim.visualMode) {
+@@ -2427,10 +2430,9 @@ export function initVim(CM) {
+       }
+       // Vim go to line begin or line end when cursor at first/last line and
+       // move to previous/next line is triggered.
+-      if (line < first && cur.line == first){
+-        return this.moveToStartOfLine(cm, head, motionArgs, vim);
+-      } else if (line > last && cur.line == last){
+-          return moveToEol(cm, head, motionArgs, vim, true);
++      // nvim-edu: Vim/Neovim 에서는 첫 줄의 k, 마지막 줄의 j 가 실패하고 커서는 그대로 (원본은 줄 처음/끝으로 이동)
++      if ((line < first && cur.line == first) || (line > last && cur.line == last)) {
++        return null;
+       }
+       if (motionArgs.toFirstChar){
+         endCh=findFirstNonWhiteSpaceCharacter(cm.getLine(line));
+@@ -2569,8 +2571,7 @@ export function initVim(CM) {
+       if (motionArgs.repeatIsExplicit) {
+         lineNum = motionArgs.repeat - cm.getOption('firstLineNumber');
+       }
+-      return new Pos(lineNum,
+-                  findFirstNonWhiteSpaceCharacter(cm.getLine(lineNum)));
++      return keepColumn(cm, lineNum, _head.ch);
+     },
+     moveToStartOfDisplayLine: function(cm) {
+       cm.execCommand("goLineLeft");
+@@ -2758,13 +2759,13 @@ export function initVim(CM) {
+     delete: function(cm, args, ranges) {
+       var finalHead, text;
+       var vim = cm.state.vim;
++      var origCh = args.origCh != null ? args.origCh : cm.getCursor().ch;
+       if (!vim.visualBlock) {
+         var anchor = ranges[0].anchor,
+             head = ranges[0].head;
++        // nvim-edu: 마지막 줄까지 지우는 줄 단위 삭제 전반 (원본은 마지막 한 줄 dd 만 처리해 dG 가 빈 줄을 남김)
+         if (args.linewise &&
+-            head.line != cm.firstLine() &&
+-            anchor.line == cm.lastLine() &&
+-            anchor.line == head.line - 1) {
++            head.line > cm.lastLine()) {
+           // Special case for dd on last line (and first line).
+           if (anchor.line == cm.firstLine()) {
+             anchor.ch = 0;
+@@ -2776,7 +2777,7 @@ export function initVim(CM) {
+         cm.replaceRange('', anchor, head);
+         finalHead = anchor;
+         if (args.linewise) {
+-          finalHead = motions.moveToFirstNonWhiteSpaceCharacter(cm, anchor);
++          finalHead = keepColumn(cm, anchor.line, origCh);
+         }
+       } else {
+         text = cm.getSelection();
+@@ -2791,6 +2792,7 @@ export function initVim(CM) {
+     },
+     indent: function(cm, args, ranges) {
+       var vim = cm.state.vim;
++      var origCh = args.origCh != null ? args.origCh : cm.getCursor().ch;
+       // In visual mode, n> shifts the selection right n times, instead of
+       // shifting n lines right once.
+       var repeat = vim.visualMode ? args.repeat || 1 : 1;
+@@ -2846,7 +2848,7 @@ export function initVim(CM) {
+           }
+         }
+       }
+-      return motions.moveToFirstNonWhiteSpaceCharacter(cm, ranges[0].anchor);
++      return keepColumn(cm, cursorMin(ranges[0].anchor, ranges[0].head).line, origCh);
+     },
+     indentAuto: function(cm, _args, ranges) {
+       cm.execCommand("indentAuto");
+@@ -2889,7 +2891,9 @@ export function initVim(CM) {
+       if (args.shouldMoveCursor){
+         return newHead;
+       } else if (!cm.state.vim.visualMode && args.linewise && ranges[0].anchor.line + 1 == ranges[0].head.line) {
+-        return motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
++        // nvim-edu: 실제 Neovim 측정값 — min(원래 열, 첫 글자 열)
++        var fnb = motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
++        return new Pos(fnb.line, Math.min(fnb.ch, args.origCh != null ? args.origCh : fnb.ch));
+       } else if (args.linewise){
+         return oldAnchor;
+       } else {
+@@ -2933,7 +2937,9 @@ export function initVim(CM) {
+       if (args.shouldMoveCursor){
+         return newHead;
+       } else if (!cm.state.vim.visualMode && args.linewise && ranges[0].anchor.line + 1 == ranges[0].head.line) {
+-        return motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
++        // nvim-edu: 실제 Neovim 측정값 — min(원래 열, 첫 글자 열)
++        var fnb = motions.moveToFirstNonWhiteSpaceCharacter(cm, oldAnchor);
++        return new Pos(fnb.line, Math.min(fnb.ch, args.origCh != null ? args.origCh : fnb.ch));
+       } else if (args.linewise){
+         return oldAnchor;
+       } else {
+@@ -3025,7 +3031,8 @@ export function initVim(CM) {
+       } else {
+         macroModeState.latestRegister = registerName;
+       }
+-      while(repeat--){
++      macroModeState.aborted = false;
++      while(repeat-- && !macroModeState.aborted){
+         executeMacroRegister(cm, vim, macroModeState, registerName);
+       }
+     },
+@@ -3245,6 +3252,17 @@ export function initVim(CM) {
+             CM.commands.newlineAndIndent;
+         newlineFn(cm);
+       }
++      // nvim-edu: O 는 Vim autoindent 처럼 '현재 줄'(새 줄 아래)의 들여쓰기를 복사 (원본은 윗줄 기준)
++      if (!actionArgs.after) {
++        var nl = cm.getCursor().line;
++        var below = cm.getLine(nl + 1);
++        var curText = cm.getLine(nl);
++        if (below !== undefined && /^\s*$/.test(curText)) {
++          var indent = below.match(/^\s*/)[0];
++          cm.replaceRange(indent, new Pos(nl, 0), new Pos(nl, curText.length));
++          cm.setCursor(nl, indent.length);
++        }
++      }
+       this.enterInsertMode(cm, { repeat: actionArgs.repeat }, vim);
+     },
+     paste: function(cm, actionArgs, vim) {
+@@ -3393,7 +3411,8 @@ export function initVim(CM) {
+           } else {
+             curPosFinal = copyCursor(cur);
+             if (!/\n/.test(text)) {
+-              curPosFinal.ch += text.length - (actionArgs.after ? 1 : 0);
++              // nvim-edu: p 와 P 모두 붙여넣은 글자의 마지막 글자 위로 (원본은 P 에서 한 칸 뒤)
++              curPosFinal.ch += text.length - 1;
+             }
+           }
+         }
+@@ -3495,7 +3514,8 @@ export function initVim(CM) {
+     incrementNumberToken: function(cm, actionArgs) {
+       var cur = cm.getCursor();
+       var lineStr = cm.getLine(cur.line);
+-      var re = /(-?)(?:(0x)([\da-f]+)|(0b|0|)(\d+))/gi;
++      // nvim-edu: Neovim 기본 nrformats=bin,hex — 0 으로 시작해도 8진수가 아니라 10진수
++      var re = /(-?)(?:(0x)([\da-f]+)|(0b|)(\d+))/gi;
+       var match;
+       var start;
+       var end;
+@@ -3514,7 +3534,8 @@ export function initVim(CM) {
+         var base = {'0b': 2, '0': 8, '': 10, '0x': 16}[baseStr.toLowerCase()];
+         var number = parseInt(match[1] + digits, base) + (increment * actionArgs.repeat);
+         numberStr = number.toString(base);
+-        var zeroPadding = baseStr ? new Array(digits.length - numberStr.length + 1 + match[1].length).join('0') : ''
++        var zeroPadding = baseStr ? new Array(digits.length - numberStr.length + 1 + match[1].length).join('0')
++          : digits.length > 1 && digits[0] === '0' ? '0'.repeat(Math.max(0, digits.length - numberStr.replace('-', '').length)) : ''
+         if (numberStr.charAt(0) === '-') {
+           numberStr = '-' + baseStr + zeroPadding + numberStr.substr(1);
+         } else {
+@@ -3891,6 +3912,11 @@ export function initVim(CM) {
+       var anchorOffset = cursorIsBefore(sel.head, sel.anchor) ? 1 : 0;
+       head = offsetCursor(sel.head, 0, headOffset);
+       anchor = offsetCursor(sel.anchor, 0, anchorOffset);
++      // nvim-edu: 줄바꿈 문자까지 선택한 경우(v$) 다음 줄 시작으로 넘겨야 실제로 줄바꿈이 포함됨
++      if (cm.state.vim.visualMode) {
++        if (head.ch > lineLength(cm, head.line) && head.line < cm.lastLine()) head = new Pos(head.line + 1, 0);
++        if (anchor.ch > lineLength(cm, anchor.line) && anchor.line < cm.lastLine()) anchor = new Pos(anchor.line + 1, 0);
++      }
+       return {
+         ranges: [{anchor: anchor, head: head}],
+         primary: 0
+@@ -4429,6 +4455,11 @@ export function initVim(CM) {
+    * @arg {MotionArgs} motionArgs 
+    * @arg {vimState} vim 
+    * @arg {boolean} keepHPos */
++  // nvim-edu: Neovim 기본값 'nostartofline' — G gg :N 과 줄 단위 d << >> 뒤에 커서 열을 (가능하면) 유지
++  function keepColumn(cm, line, ch) {
++    return new Pos(line, Math.max(0, Math.min(ch, lineLength(cm, line) - 1)));
++  }
++
+   function moveToEol(cm, head, motionArgs, vim, keepHPos) {
+     var cur = head;
+     var retval= new Pos(cur.line + motionArgs.repeat - 1, Infinity);
+@@ -4952,6 +4983,12 @@ export function initVim(CM) {
+       end.ch += 1;
+     } else {
+       start.ch += 1;
++      // nvim-edu: :help i{ — 여는 괄호가 줄 끝이고 닫는 괄호 앞이 공백뿐이면 그 사이 줄들만(줄 단위) 대상
++      if (start.ch == lineLength(cm, start.line) && end.line > start.line + 1 &&
++          /^\s*$/.test(cm.getLine(end.line).slice(0, end.ch))) {
++        start = new Pos(start.line + 1, 0);
++        end = new Pos(end.line, 0);
++      }
+     }
+ 
+     return { start: start, end: end };
+@@ -5014,6 +5051,11 @@ export function initVim(CM) {
+     // include the symbols
+     if (inclusive) {
+       --start; ++end;
++      // nvim-edu: :help a" — 뒤 공백을 포함하고, 뒤 공백이 없으면 앞 공백을 포함
++      var e = end;
++      while (e < chars.length && /\s/.test(chars[e])) e++;
++      if (e > end) end = e;
++      else while (start > 0 && /\s/.test(chars[start - 1])) start--;
+     }
+ 
+     return {
+@@ -5024,6 +5066,8 @@ export function initVim(CM) {
+ 
+   // Search functions
+   defineOption('pcre', true, 'boolean');
++  defineOption('ignorecase', false, 'boolean', ['ic']);
++  defineOption('smartcase', false, 'boolean', ['scs']);
+   
+   /**@type {SearchStateInterface} */
+   class SearchState {
+@@ -5256,12 +5300,15 @@ export function initVim(CM) {
+     if (!regexPart) {
+       return null;
+     }
++    // nvim-edu: 호출부가 넘기는 값 대신 'ignorecase'/'smartcase' 옵션(Neovim 기본: 둘 다 꺼짐)과 \c \C 를 따른다
++    var forceCase = /\\C/.test(regexPart);
++    if (/\\c/.test(regexPart)) forceIgnoreCase = true;
++    regexPart = regexPart.replace(/\\[cC]/g, '');
+     if (!getOption('pcre')) {
+       regexPart = translateRegex(regexPart);
+     }
+-    if (smartCase) {
+-      ignoreCase = (/^[^A-Z]*$/).test(regexPart);
+-    }
++    ignoreCase = getOption('ignorecase') && !(getOption('smartcase') && /[A-Z]/.test(regexPart));
++    if (forceCase) ignoreCase = forceIgnoreCase = false;
+     var regexp = new RegExp(regexPart,
+         (ignoreCase || forceIgnoreCase) ? 'im' : 'm');
+     return regexp;
+@@ -5647,7 +5694,8 @@ export function initVim(CM) {
+       if (!params.commandName) {
+         // If only a line range is defined, move to the line.
+         if (params.line !== undefined) {
+-          commandName = 'move';
++          // nvim-edu: 내부 줄 이동 명령 이름이 Ex :move 와 겹치지 않게 변경
++          commandName = 'gotoLine_';
+         }
+       } else {
+         command = this.matchCommand_(params.commandName);
+@@ -5723,7 +5771,8 @@ export function initVim(CM) {
+ 
+       inputStream.eatSpace();
+       // Parse command name.
+-      var commandMatch = inputStream.match(/^(\w+|!!|@@|[!#&*<=>@~])/);
++      // nvim-edu: Vim 명령 이름은 영문자만 (:m0 → m + 0, :t. → t + .)
++      var commandMatch = inputStream.match(/^([a-zA-Z]+|!!|@@|[!#&*<=>@~])/);
+       if (commandMatch) {
+         result.commandName = commandMatch[1];
+       } else {
+@@ -5966,7 +6015,7 @@ export function initVim(CM) {
+     /** @arg {CodeMirrorV} cm @arg {ExParams} params*/
+     omapclear: function(cm, params) { vimApi.mapclear('operatorPending'); },
+     /** @arg {CodeMirrorV} cm @arg {ExParams} params*/
+-    move: function(cm, params) {
++    gotoLine_: function(cm, params) {
+       commandDispatcher.processCommand(cm, cm.state.vim, {
+         keys: "",
+         type: 'motion',
+@@ -6221,13 +6270,13 @@ export function initVim(CM) {
+           cm.setCursor(i, 0);
+           doKeyToKey(cm, params.argString.trimStart(), {noremap});
+           if (cm.state.vim.insertMode) {
+-            exitInsertMode(cm, true);
++            exitInsertMode(cm); // nvim-edu: :normal 은 끝에 <Esc> 를 누른 것처럼 (커서 한 칸 뒤로)
+           }
+         }
+       } else {
+         doKeyToKey(cm, params.argString.trimStart(), {noremap});
+         if (cm.state.vim.insertMode) {
+-          exitInsertMode(cm, true);
++          exitInsertMode(cm);
+         }
+       }
+     },
+@@ -6310,6 +6359,8 @@ export function initVim(CM) {
+             'any other getSearchCursor implementation.');
+       }
+       var argString = params.argString;
++      // nvim-edu: & (마지막 :s 반복) 을 위해 기억
++      if (argString) vimGlobalState.lastSubstituteArgString = argString;
+       var tokens = argString ? splitBySeparator(argString, argString[0]) : [];
+       var regexPart = '', replacePart = '', trailing, flagsPart, count;
+       var confirm = false; // Whether to confirm each replace.
+@@ -6447,10 +6498,11 @@ export function initVim(CM) {
+     delete: function(cm, params) {
+       var line = params.selectionLine;
+       var lineEnd = isNaN(params.selectionLineEnd) ? line : params.selectionLineEnd;
+-      operators.delete(cm, {linewise: true}, [
++      // nvim-edu: 지운 자리로 커서 이동 (원본은 커서를 그대로 둬서 :2,3d · :g/x/d 후 위치가 Vim 과 달랐음)
++      cm.setCursor(operators.delete(cm, {linewise: true}, [
+         { anchor: new Pos(line, 0),
+           head: new Pos(lineEnd + 1, 0) }
+-      ]);
++      ]));
+     },
+     /** @arg {CodeMirrorV} cm @arg {ExParams} params*/
+     join: function(cm, params) {
+@@ -6614,6 +6666,8 @@ export function initVim(CM) {
+       if (close) { close(); }
+       cm.focus();
+       if (lastPos) {
++        // nvim-edu: Vim 처럼 마지막으로 바뀐 줄의 첫 글자(공백 제외)로
++        lastPos = new Pos(lastPos.line, findFirstNonWhiteSpaceCharacter(cm.getLine(lastPos.line)));
+         cm.setCursor(lastPos);
+         var vim = cm.state.vim;
+         vim.exMode = false;
+@@ -6700,8 +6754,13 @@ export function initVim(CM) {
+     delete vim.insertModeRepeat;
+     vim.insertMode = false;
+     if (!keepCursor) {
+-      cm.setCursor(cm.getCursor().line, cm.getCursor().ch-1);
++      // nvim-edu: 블록 입력(Ctrl-v I/A) 후에는 Vim 처럼 블록 왼쪽 위('<)로
++      var blockStart = cm.listSelections().length > 1 && vim.marks['<'] && vim.marks['<'].find();
++      if (blockStart) cm.setCursor(blockStart);
++      else cm.setCursor(cm.getCursor().line, cm.getCursor().ch-1);
+     }
++    // nvim-edu: 입력 모드를 나온 위치를 원하는 열(curswant)로 — 이후 j/k 가 이 열을 기준으로 움직이게
++    vim.lastHPos = cm.getCursor().ch;
+     cm.setOption('keyMap', 'vim');
+     cm.setOption('disableInput', true);
+     cm.toggleOverwrite(false); // exit replace mode if we were in it.
+@@ -6794,7 +6853,9 @@ export function initVim(CM) {
+           repeatInsertModeChanges(cm, changes, 1);
+           exitInsertMode(cm);
+         }
++        if (macroModeState.aborted) break;
+       }
++      if (macroModeState.aborted) break;
+     }
+     macroModeState.isPlaying = false;
+   }

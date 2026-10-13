@@ -40,9 +40,27 @@ jobs:
         with:
           path: dist
 
+  # 같은 키 입력을 실제 Neovim 과 사이트 에디터에 넣고 결과(텍스트·커서·모드)가 같은지 비교
+  nvim-diff:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - name: Neovim 0.11.0 설치 (로컬 비교 기준과 같은 버전)
+        run: |
+          curl -fsSL https://github.com/neovim/neovim/releases/download/v0.11.0/nvim-linux-x86_64.tar.gz | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/nvim-linux-x86_64/bin" >> "$GITHUB_PATH"
+      - run: nvim --version | head -1
+      - run: npm run test:nvim
+
   deploy:
     if: github.event_name != 'pull_request'
-    needs: test
+    needs: [test, nvim-diff]
     runs-on: ubuntu-24.04
     environment:
       name: github-pages

@@ -105,6 +105,48 @@ const blockHangul = Prec.highest(EditorView.inputHandler.of((view, _from, _to, t
   return true
 }))
 
+// 에뮬레이터에 없는 Ex 명령: :m(ove) · :t / :co(py) — 실제 Neovim 과 비교 테스트로 동작 확인
+const firstNonBlank = (cm, line) => Math.max(0, cm.getLine(line).search(/\S|$/))
+function exAddress(cm, s) {
+  const m = /^(\d+|\.|\$)?([+-]\d*)?$/.exec(s.trim())
+  if (!m) return null
+  const cur = cm.getCursor().line
+  let n = m[1] === undefined || m[1] === '.' ? cur : m[1] === '$' ? cm.lastLine() : +m[1] - 1 // 0 → -1 = 첫 줄 위
+  if (m[2]) n += m[2].length === 1 ? (m[2] === '+' ? 1 : -1) : +m[2]
+  return Math.max(-1, Math.min(cm.lastLine(), n))
+}
+function moveOrCopy(cm, p, copy) {
+  const a = p.line ?? cm.getCursor().line
+  const b = p.lineEnd ?? a
+  let t = exAddress(cm, p.argString ?? '')
+  if (t === null) return msg(`E14: 잘못된 주소: ${p.argString}`, 'error')
+  if (!copy && t >= a && t < b) return msg('E134: 범위 안으로는 옮길 수 없습니다', 'error')
+  const lines = []
+  for (let i = a; i <= b; i++) lines.push(cm.getLine(i))
+  const len = (l) => cm.getLine(l).length
+  cm.operation(() => {
+    if (!copy) {
+      if (b < cm.lastLine()) cm.replaceRange('', { line: a, ch: 0 }, { line: b + 1, ch: 0 })
+      else if (a > 0) cm.replaceRange('', { line: a - 1, ch: len(a - 1) }, { line: b, ch: len(b) })
+      else cm.replaceRange('', { line: 0, ch: 0 }, { line: b, ch: len(b) })
+      if (t > b) t -= b - a + 1
+    }
+    if (t < 0) cm.replaceRange(lines.join('\n') + '\n', { line: 0, ch: 0 })
+    else cm.replaceRange('\n' + lines.join('\n'), { line: t, ch: len(t) })
+  })
+  const last = t + lines.length
+  cm.setCursor(last, firstNonBlank(cm, last))
+}
+Vim.defineEx('move', 'm', (cm, p) => moveOrCopy(cm, p, false))
+Vim.defineEx('copy', 'co', (cm, p) => moveOrCopy(cm, p, true))
+Vim.defineEx('t', 't', (cm, p) => moveOrCopy(cm, p, true))
+// & : 마지막 :s 를 현재 줄에 다시 (Neovim 기본 매핑 & → :&&)
+Vim.defineAction('repeatSubstitute', (cm) => {
+  const last = Vim.getVimGlobalState_().lastSubstituteArgString
+  if (last) Vim.handleEx(cm, 's' + last)
+})
+Vim.mapCommand('&', 'action', 'repeatSubstitute', {}, { context: 'normal' })
+
 Vim.defineEx('colorscheme', 'colo', (_cm, p) => (p.args?.[0] ? setScheme(p.args[0]) : msg(`${$('#scheme').value} — 사용 가능: ${SCHEMES.join(' ')}`)))
 Vim.defineEx('quit', 'q', () => msg('E37: 여기선 :q 로 탈출할 수 없습니다. 계속 연습하세요 :)', 'error'))
 Vim.defineEx('write', 'w', () => msg(`"${fileName()}" 저장할 필요 없어요. 진행 상황은 자동 저장됩니다`, 'ok'))
@@ -498,4 +540,12 @@ window.__edu = {
   levels, missions,
   get done() { return done }, get count() { return count },
   get level() { return level }, get session() { return session && { round: session.round, total: session.total } },
+  // 실제 Neovim 과 비교 테스트용: 임의 텍스트로 에디터를 띄우고 결과를 읽음
+  mountText(text, cursor) { mount({ id: 'diff', keys: [], desc: '', start: text, cursor }) },
+  get editor() {
+    const head = view.state.selection.main.head
+    const line = view.state.doc.lineAt(head)
+    const v = getCM(view).state.vim
+    return { text: view.state.doc.toString(), cursor: [line.number - 1, head - line.from], mode: v.insertMode ? 'i' : v.visualMode ? 'v' : 'n' }
+  },
 }

@@ -5,7 +5,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/tmux.test.mjs && vite build && node tests/regress.e2e.mjs && node tests/levels.e2e.mjs"
+    "test": "node --test tests/tmux.test.mjs && vite build && node tests/regress.e2e.mjs && node tests/levels.e2e.mjs",
+    "postinstall": "patch-package",
+    "test:nvim": "vite build && node tests/nvim-diff.mjs"
   },
   "license": "MIT",
   "description": "브라우저에서 바로 하는 Vim/Neovim 단축키 연습",
@@ -21,6 +23,7 @@
     "@replit/codemirror-vim": "^6.4.0"
   },
   "devDependencies": {
+    "patch-package": "^8.0.1",
     "playwright-core": "^1.64.0",
     "vite": "^8.3.4"
   },
