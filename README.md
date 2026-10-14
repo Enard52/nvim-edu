@@ -7,6 +7,8 @@ Like [LearnGitBranching](https://learngitbranching.js.org/), you see the **goal 
 
 **▶ https://s3onghyun.github.io/nvim-edu/**
 
+![A boss level: apply an AI code review with :g, :%s, dd, cw and .](docs/level-en.png)
+
 When you run AI coding agents (Claude Code, Codex, …) in a terminal, the editing you still do by hand happens in Neovim and tmux.
 This site trains exactly those keys until your fingers remember them.
 

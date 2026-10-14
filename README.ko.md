@@ -7,6 +7,8 @@
 
 **▶ https://s3onghyun.github.io/nvim-edu/**
 
+![보스 레벨: AI 코드 리뷰를 :g, :%s, dd, cw, . 로 반영하기](docs/level-ko.png)
+
 AI 에이전트(Claude Code, Codex …)를 tmux · 터미널에서 돌리다 보면 결국 손이 가는 건 Neovim입니다.
 설치나 설정 없이 손가락에 모션을 익히는 게 목표입니다.
 
