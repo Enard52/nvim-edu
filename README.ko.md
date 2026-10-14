@@ -85,7 +85,7 @@ npm run test:nvim   # nvim 이 PATH 에 있어야 함
 }
 ```
 
-`npm test` 가 그 답안으로 실제로 클리어되는지 확인해 줍니다. PR 환영합니다.
+`npm test` 가 그 답안으로 실제로 클리어되는지 확인해 줍니다. 자세한 단계 및 par 가이드는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요. PR 환영합니다.
 
 ## 알려진 한계
 

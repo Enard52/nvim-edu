@@ -82,7 +82,7 @@ Add one object to `src/levels.js` (and its English text to `src/levels.en.js`):
 }
 ```
 
-`npm test` checks that the solution really clears the level, in the emulator and in real Vim. PRs welcome!
+`npm test` checks that the solution really clears the level, in the emulator and in real Vim. See [CONTRIBUTING.md](CONTRIBUTING.md) for step-by-step instructions and par guidelines. PRs welcome!
 
 ## Known limitations
 
