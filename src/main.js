@@ -616,7 +616,9 @@ $('#hint').onclick = () => {
 $('#menu').onclick = () => document.body.classList.toggle('nav-open')
 $('#nav').onclick = (e) => { if (e.target.closest('a')) document.body.classList.remove('nav-open') }
 translateDom()
-$('#lang').textContent = lang === 'en' ? '한국어' : 'EN'
+const langText = lang === 'en' ? '한국어' : 'EN'
+$('#lang').append(langText)
+$('#lang').setAttribute('aria-label', `${langText} ${$('#lang').getAttribute('aria-label')}`)
 $('#lang').onclick = () => setLang(lang === 'en' ? 'ko' : 'en')
 window.addEventListener('hashchange', () => load(location.hash.slice(1)))
 load(location.hash.slice(1))

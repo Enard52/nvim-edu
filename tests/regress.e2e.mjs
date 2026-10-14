@@ -52,21 +52,30 @@ expect('2장부터는 방향키 이동', (await state()).pos, '1:2')
 
 // 2-2) 언어 버튼: #레벨 이 붙은 주소에서도 바로 전환 (전엔 해시만 같은 주소라 새로고침이 안 됐음)
 await open('hjkl')
-expect('언어 버튼은 이름·테두리·키보드 포커스를 제공', await page.evaluate(() => {
+const langButton = () => page.evaluate(() => {
   const button = document.querySelector('#lang')
   button.focus()
   const style = getComputedStyle(button)
   return {
+    text: button.innerText.trim(),
     label: button.getAttribute('aria-label'),
+    hasIcon: !!button.querySelector('.lang-icon'),
     focused: document.activeElement === button,
     bordered: style.borderTopColor !== 'rgba(0, 0, 0, 0)' && style.borderTopStyle !== 'none',
   }
-}), { label: '언어 전환', focused: true, bordered: true })
+})
+const langKo = { text: 'EN', label: 'EN 언어 전환', hasIcon: true, focused: true, bordered: true }
+const langEn = { text: '한국어', label: '한국어 Switch language', hasIcon: true, focused: true, bordered: true }
+expect('언어 버튼은 아이콘·이름·테두리·키보드 포커스를 제공', await langButton(), langKo)
 await Promise.all([page.waitForEvent('load'), page.click('#lang')])
-expect('레벨 화면에서 언어 버튼 → 영어', await page.locator('#lang').innerText(), '한국어')
-expect('영어 화면 언어 버튼 이름', await page.locator('#lang').getAttribute('aria-label'), 'Switch language')
+expect('레벨 화면에서 언어 버튼 → 영어', await langButton(), langEn)
 await Promise.all([page.waitForEvent('load'), page.click('#lang')])
-expect('다시 누르면 한국어', await page.locator('#lang').innerText(), 'EN')
+expect('다시 누르면 한국어', await langButton(), langKo)
+for (const [l, want] of [['ko', langKo], ['en', langEn]]) {
+  await page.goto(`${BASE}real/?lang=${l}#x`)
+  await page.waitForFunction(() => document.querySelector('#lang').innerText.trim())
+  expect(`진짜 Vim 화면 언어 버튼 (${l})`, await langButton(), want)
+}
 
 // 3) 한글 IME (Chromium 만: CDP 로 실제 IME 와 같은 순서의 이벤트를 보냄)
 if (name === 'chromium') {
