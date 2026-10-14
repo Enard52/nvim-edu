@@ -24,7 +24,7 @@ This site trains exactly those keys until your fingers remember them.
 Neovim-style UI: neo-tree sidebar, bufferline, lualine, cmdline messages, relative line numbers, `~` past the end of the buffer,
 `:colorscheme tokyonight | catppuccin | gruvbox | tokyonight-day`.
 
-Habit training: arrow keys and the mouse are blocked; typing with a non-Latin input method (Korean, Japanese, Chinese IME) in NORMAL mode shows a hint.
+Habit training: arrow keys are blocked in chapter 1 (motions) and the motion drill, the mouse is blocked; typing with a non-Latin input method (Korean, Japanese, Chinese IME) in NORMAL mode shows a hint.
 
 Languages: English and Korean. Picked from `?lang=en|ko`, then your saved choice, then the browser language.
 

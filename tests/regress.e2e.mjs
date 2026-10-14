@@ -41,6 +41,14 @@ expect('f 와 ; 반복은 그대로 동작', (await state()).pos, '1:4')
 await page.keyboard.type(',')
 expect(', 역방향 반복', (await state()).pos, '1:3')
 
+// 2-1) 방향키: 1장(이동)에선 막고, 그 뒤 레벨에선 실제 Vim 처럼 동작
+await open('hjkl')
+await page.keyboard.press('ArrowRight')
+expect('1장에선 방향키 막힘', (await state()).pos, '1:1')
+await open('x')
+await page.keyboard.press('ArrowRight')
+expect('2장부터는 방향키 이동', (await state()).pos, '1:2')
+
 // 3) 한글 IME (Chromium 만: CDP 로 실제 IME 와 같은 순서의 이벤트를 보냄)
 if (name === 'chromium') {
   const cdp = await page.context().newCDPSession(page)

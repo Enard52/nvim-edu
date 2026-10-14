@@ -24,7 +24,7 @@ AI 에이전트(Claude Code, Codex …)를 tmux · 터미널에서 돌리다 보
 Neovim 같은 화면: neo-tree 사이드바, bufferline, lualine, cmdline 메시지, 상대 줄 번호, `~`,
 `:colorscheme tokyonight | catppuccin | gruvbox | tokyonight-day`.
 
-습관 교정: 방향키·마우스 차단, NORMAL 모드에서 한글 IME 로 입력하면 "한/영 전환" 안내.
+습관 교정: 1장(이동)·이동 미션에선 방향키 차단, 마우스 차단, NORMAL 모드에서 한글 IME 로 입력하면 "한/영 전환" 안내.
 
 ## 개발
 

@@ -357,10 +357,12 @@ function mount(lvl) {
   })
 
   // 키 카운트 + 방향키/마우스/한글 입력 차단 (손가락을 홈row에 두는 습관)
+  // 방향키는 hjkl 을 익히는 1장(이동)과 이동 미션에서만 막음. 그 뒤로는 실제 Vim 처럼 허용
   view.dom.addEventListener('keydown', (e) => {
     if (MODIFIERS.has(e.key) || done) return
     const inEditor = e.target === view.contentDOM
-    if (inEditor && e.key.startsWith('Arrow')) {
+    const noArrows = session ? session.mission.id === 'mission-move' : lvl.chapter === 'move'
+    if (inEditor && noArrows && e.key.startsWith('Arrow')) {
       e.preventDefault(); e.stopPropagation()
       return msg(tr('방향키 대신 h j k l 을 쓰세요', 'Use h j k l instead of the arrow keys'), 'error')
     }
