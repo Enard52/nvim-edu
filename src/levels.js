@@ -27,7 +27,7 @@ const DIFFICULTIES = {
 }
 
 export function difficultyLabel(difficulty) {
-  const [ko, en] = DIFFICULTIES[difficulty] ?? DIFFICULTIES.beginner
+  const [ko, en] = DIFFICULTIES[difficulty]
   return t(ko, en)
 }
 

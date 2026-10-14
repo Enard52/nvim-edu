@@ -574,8 +574,8 @@ function load(id) {
   clearInterval(session?.timer)
   session = null
   const lvl = levels.find((l) => l.id === id) ?? SANDBOX
-  $('#chapter').textContent = chapters.find((c) => c.id === lvl.chapter)?.title ?? 'playground'
   const chapter = chapters.find((c) => c.id === lvl.chapter)
+  $('#chapter').textContent = chapter?.title ?? 'playground'
   $('#difficulty').hidden = !chapter
   $('#difficulty').textContent = chapter ? difficultyText(chapter.difficulty) : ''
   $('#title').textContent = lvl.title
