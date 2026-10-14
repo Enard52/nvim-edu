@@ -263,8 +263,10 @@ body.real main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px
 .real-link { color: var(--green); text-decoration: none; padding: 2px 6px; border: 1px solid var(--green); }
 .real-link:hover { background: var(--bg-hl); }
 
-.lang { margin: 0 4px; padding: 0 10px; background: transparent; color: var(--fg-dim); }
-.lang:hover { color: var(--fg); }
+.lang { gap: 5px; margin: 2px 4px; padding: 0 8px; background: transparent; color: var(--fg); border-color: var(--line); }
+.lang:hover { background: var(--bg-hl); border-color: var(--blue); }
+.lang:focus-visible { outline-offset: 1px; border-color: var(--blue); }
+.lang-icon { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; }
 
 /* ── 풀이 해설 ── */
 /* 화면 밖(left:-10000px)이나 visibility:hidden 이면 CodeMirror 가 줄 좌표를 못 재서 j/k 가 틀어짐 → 화면 안에 투명하게 */
