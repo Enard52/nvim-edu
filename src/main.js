@@ -4,7 +4,7 @@ import { history } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting, bracketMatching } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
 import { vim, getCM, Vim, CodeMirror } from '@replit/codemirror-vim'
-import { chapters, levels, tokenize, stars } from './levels.js'
+import { chapters, levels, tokenize, stars, difficultyLabel, difficultyText } from './levels.js'
 import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
 import { createTmux, press as tmuxPress, tmuxTask, AGENT_LOG } from './tmux.js'
 import { renderTmux, tmuxMode, tmuxTarget } from './tmux-view.js'
@@ -209,7 +209,7 @@ function renderNav() {
     `<div class="root">nvim-edu/ <span class="dim">${s ? `🔥${s} · ` : ''}${cleared}/${levels.length}</span></div>` +
     `<div class="dir">missions/</div>` +
     missions.map((m) => file(m.id, m.title, { cls: 'drill', ico: '◆', meta: records[m.id] ? `${records[m.id].time.toFixed(1)}s` : '' })).join('') +
-    chapters.map((c) => `<div class="dir">${c.title}/</div>` +
+    chapters.map((c) => `<div class="dir" data-chapter="${c.id}">${c.title}/ <span class="difficulty" aria-label="${difficultyText(c.difficulty)}">${difficultyLabel(c.difficulty)}</span></div>` +
       levels.filter((l) => l.chapter === c.id).map((l) => file(l.id, l.title, {
         cls: progress[l.id] ? 'cleared' : '', ico: progress[l.id] ? '●' : '○', meta: '★'.repeat(progress[l.id] ?? 0),
       })).join('')).join('') +
@@ -457,6 +457,7 @@ function startRound() {
 
 function startMission(mission) {
   $('#real-link').hidden = true
+  $('#difficulty').hidden = true
   if (mission.tmux) return startTmuxMission(mission)
   clearInterval(session?.timer)
   session = createSession(mission)
@@ -573,7 +574,10 @@ function load(id) {
   clearInterval(session?.timer)
   session = null
   const lvl = levels.find((l) => l.id === id) ?? SANDBOX
-  $('#chapter').textContent = chapters.find((c) => c.id === lvl.chapter)?.title ?? 'playground'
+  const chapter = chapters.find((c) => c.id === lvl.chapter)
+  $('#chapter').textContent = chapter?.title ?? 'playground'
+  $('#difficulty').hidden = !chapter
+  $('#difficulty').textContent = chapter ? difficultyText(chapter.difficulty) : ''
   $('#title').textContent = lvl.title
   $('#keychips').innerHTML = lvl.keys.map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')
   $('#hint').hidden = !lvl.solution

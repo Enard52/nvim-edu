@@ -10,14 +10,30 @@ import { lang, t } from './i18n.js'
 import { EN } from './levels.en.js'
 
 export const chapters = [
-  { id: 'move', title: '1. 이동' },
-  { id: 'edit', title: '2. 편집' },
-  { id: 'object', title: '3. 텍스트 오브젝트' },
-  { id: 'power', title: '4. 비주얼 · 매크로' },
-  { id: 'real', title: '5. 실전: AI 코드 다듬기' },
-  { id: 'tmux', title: '6. tmux: AI 터미널 필수 키' },
-  { id: 'guru', title: '7. 구루: 상황별 콤보' },
+  { id: 'move', title: '1. 이동', difficulty: 'beginner' },
+  { id: 'edit', title: '2. 편집', difficulty: 'beginner' },
+  { id: 'object', title: '3. 텍스트 오브젝트', difficulty: 'intermediate' },
+  { id: 'power', title: '4. 비주얼 · 매크로', difficulty: 'intermediate' },
+  { id: 'real', title: '5. 실전: AI 코드 다듬기', difficulty: 'advanced' },
+  { id: 'tmux', title: '6. tmux: AI 터미널 필수 키', difficulty: 'advanced' },
+  { id: 'guru', title: '7. 구루: 상황별 콤보', difficulty: 'guru' },
 ]
+
+const DIFFICULTIES = {
+  beginner: ['초보', 'Beginner'],
+  intermediate: ['중급', 'Intermediate'],
+  advanced: ['고급', 'Advanced'],
+  guru: ['구루', 'Guru'],
+}
+
+export function difficultyLabel(difficulty) {
+  const [ko, en] = DIFFICULTIES[difficulty]
+  return t(ko, en)
+}
+
+export function difficultyText(difficulty) {
+  return t(`난이도: ${difficultyLabel(difficulty)}`, `Difficulty: ${difficultyLabel(difficulty)}`)
+}
 
 export const levels = [
   // ── 1. 이동 ──

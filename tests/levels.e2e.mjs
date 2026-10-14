@@ -1,7 +1,7 @@
 // 모든 레벨의 모범 답안을 실제 브라우저에서 입력해 클리어되는지, 타수가 par와 같은지 검증
 import { preview } from 'vite'
 import * as pw from 'playwright-core'
-import { levels, tokenize } from '../src/levels.js'
+import { chapters, levels, tokenize, difficultyLabel, difficultyText } from '../src/levels.js'
 
 const KEY = {
   '<Esc>': 'Escape', '<CR>': 'Enter', '<C-a>': 'Control+a', '<C-v>': 'Control+v', '<C-b>': 'Control+b', '<C-u>': 'Control+u',
@@ -17,6 +17,21 @@ const QS = process.env.UI_LANG ? `?lang=${process.env.UI_LANG}` : ''
 const browser = await pw[name].launch({ executablePath: name === 'chromium' ? process.env.CHROME_PATH || undefined : undefined })
 const page = await browser.newPage()
 let failed = 0
+
+// 난이도는 챕터 데이터에서 나와 파일 트리와 도움말에 모두 텍스트로 보여야 한다.
+for (const chapter of chapters) {
+  const level = levels.find((item) => item.chapter === chapter.id)
+  const difficultyQS = `?lang=${process.env.UI_LANG ?? 'ko'}`
+  await page.goto(`${BASE}${difficultyQS}#${level.id}`)
+  const treeBadge = page.locator(`.tree .dir[data-chapter="${chapter.id}"] .difficulty`)
+  const helpBadge = page.locator('#difficulty')
+  const [treeText, treeLabel, helpText] = await Promise.all([
+    treeBadge.innerText(), treeBadge.getAttribute('aria-label'), helpBadge.innerText(),
+  ])
+  const ok = treeText === difficultyLabel(chapter.difficulty) && treeLabel === difficultyText(chapter.difficulty) && helpText === difficultyText(chapter.difficulty)
+  if (!ok) failed++
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${chapter.id} difficulty${ok ? '' : `\n  tree=${JSON.stringify(treeText)} aria=${JSON.stringify(treeLabel)} help=${JSON.stringify(helpText)}`}`)
+}
 
 async function typeKeys(tokens) {
   for (const t of tokens) {
