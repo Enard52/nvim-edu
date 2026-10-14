@@ -36,9 +36,17 @@ for (const level of levels) {
     done: window.__edu.done, count: window.__edu.count,
     text: (document.querySelector('.cm-content') ?? document.querySelector('#term')).innerText,
   }))
-  const ok = done && count === tokens.length
+  let ok = done && count === tokens.length
   if (!ok) failed++
   console.log(`${ok ? 'PASS' : 'FAIL'} ${level.id} done=${done} count=${count}/${tokens.length}${ok ? '' : `\n${text}`}`)
+  // 풀이 해설: 내 키·모범 답안을 보이지 않는 에디터에서 다시 실행한 결과가 실제 에디터의 마지막 상태와 같아야 함
+  if (!level.kind) {
+    const ex = await page.evaluate(() => ({ ...window.__edu.explainCheck(), now: window.__edu.editor }))
+    const want = JSON.stringify({ text: ex.now.text, cursor: ex.now.cursor })
+    ok = JSON.stringify(ex.mine) === want && JSON.stringify(ex.solution) === want && ex.rows > 0
+    if (!ok) failed++
+    console.log(`${ok ? 'PASS' : 'FAIL'} ${level.id} explain${ok ? '' : `\n  editor   ${want}\n  mine     ${JSON.stringify(ex.mine)}\n  solution ${JSON.stringify(ex.solution)}\n  rows ${ex.rows}`}`)
+  }
 }
 
 // 미션: 라운드마다 생성된 답안을 입력해 10라운드 완주 (랜덤이라 미션당 3회)

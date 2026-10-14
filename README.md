@@ -17,6 +17,7 @@ This site trains exactly those keys until your fingers remember them.
 | Mode | |
 |------|------|
 | **Levels** (41) | Motions → editing → text objects → visual & macros → real-world cleanup (`:%s`, `:g`, applying an AI code review) → **tmux** → **guru combos** (code, logs, config, docs: `*` `n` `.`, `:v`, `:sort u`, `:g`+`:norm`, regex groups, macro + Ctrl-a). ★1–3 based on keystrokes vs. par |
+| **Step-by-step replay** | After clearing a level (or from "Solution"), your keys and the reference solution are split into Vim commands and replayed: key → meaning → resulting line, so you can see where the extra keys went |
 | **tmux chapter** | Only the keys a human still types while an agent runs: sessions, splits, pane moves, zoom, copy mode to scroll and copy errors, windows, detach/attach, switching sessions |
 | **Drills** | 10 random tasks in a row (motion, delete, change, tmux). Best time and keystrokes are saved |
 | **Daily challenge** | Date-seeded, so everyone gets the same tasks that day. Keeps a 🔥 streak |

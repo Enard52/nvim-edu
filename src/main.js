@@ -9,6 +9,7 @@ import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
 import { createTmux, press as tmuxPress, tmuxTask, AGENT_LOG } from './tmux.js'
 import { renderTmux, tmuxMode, tmuxTarget } from './tmux-view.js'
 import { lang, t as tr, setLang, translateDom } from './i18n.js'
+import { replay } from './explain.js'
 import './style.css'
 
 // 문법 강조는 레벨이 쓸 때만 불러옴 (첫 화면 번들에서 빼서 따로 받음)
@@ -54,7 +55,7 @@ const records = store.get('records', {}) // 미션별 최고 기록 { time, keys
 const days = store.get('days', []) // 미션을 완료한 날짜들
 const buffers = [] // 최근 연 화면들 (bufferline)
 
-let view, level, count, keyLog, done
+let view, level, count, keyLog, keyTokens, done
 let session = null // 미션 진행 중일 때만
 let tm = null // tmux 시뮬레이터 상태 (tmux 레벨/미션일 때만)
 const relNumbers = new Compartment()
@@ -165,6 +166,13 @@ function msg(text, kind = '') {
   $('#cmdline').className = kind
 }
 
+// 해설 리플레이용 Vim 표기 (<Esc>, <CR>, <C-a>)
+const NAMED = { Escape: '<Esc>', Enter: '<CR>', Backspace: '<BS>', Tab: '<Tab>', ArrowLeft: '<Left>', ArrowRight: '<Right>', ArrowUp: '<Up>', ArrowDown: '<Down>' }
+function keyToken(e) {
+  if (e.ctrlKey && e.key.length === 1) return `<C-${e.key.toLowerCase()}>`
+  return NAMED[e.key] ?? (e.key.length === 1 ? e.key : null)
+}
+
 function keyLabel(e) {
   if (e.key === 'Escape') return 'Esc'
   if (e.key === 'Enter') return '⏎'
@@ -266,6 +274,49 @@ function check() {
   session ? roundCleared() : levelCleared()
 }
 
+// ── 풀이 해설: 보이지 않는 에디터로 명령마다 다시 실행해 결과를 보여 줌 ──
+function replayView() {
+  const parent = document.createElement('div')
+  parent.className = 'offscreen'
+  parent.setAttribute('aria-hidden', 'true')
+  document.body.append(parent)
+  const state = EditorState.create({ doc: level.start })
+  const v = new EditorView({
+    parent,
+    state: EditorState.create({
+      doc: level.start,
+      selection: { anchor: Math.min(posOf(state, level.cursor), state.doc.length) },
+      extensions: [vim(), EditorState.allowMultipleSelections.of(true), history()],
+    }),
+  })
+  const destroy = v.destroy.bind(v)
+  v.destroy = () => { destroy(); parent.remove() }
+  return { view: v, start: level.start }
+}
+
+function resultHtml(text, [line, col], prevText) {
+  const lines = text.split('\n')
+  const chars = [...(lines[line] ?? '')]
+  const cur = chars.map((c, i) => (i === col ? `<span class="ex-cur">${escapeHtml(c)}</span>` : escapeHtml(c))).join('') + (col >= chars.length ? '<span class="ex-cur"> </span>' : '')
+  const n = prevText.split('\n').length
+  const delta = lines.length !== n ? ` <span class="dim">${tr(`${n}줄 → ${lines.length}줄`, `${n} → ${lines.length} lines`)}</span>` : ''
+  return `<span class="dim">${line + 1}:</span> ${cur}${delta}`
+}
+
+function explainHtml(title, tokens, open) {
+  if (!tokens.length) return ''
+  const { start, steps } = replay(tokens, replayView, Vim, getCM)
+  let prev = start
+  const rows = steps.map((st, i) => {
+    const changed = st.text !== prev
+    const row = `<tr class="${changed ? 'ex-changed' : ''}"><td class="dim">${i + 1}</td><td>${st.keys.map((k) => `<kbd>${escapeHtml(k)}</kbd>`).join('')}</td><td>${st.html}</td><td class="ex-result">${resultHtml(st.text, st.cursor, prev)}</td></tr>`
+    prev = st.text
+    return row
+  }).join('')
+  return `<details class="explain"${open ? ' open' : ''}><summary>${title}</summary><div class="ex-scroll"><table>
+    <thead><tr><th>#</th><th>${tr('키', 'Keys')}</th><th>${tr('뜻', 'Meaning')}</th><th>${tr('결과 (커서 줄)', 'Result (cursor line)')}</th></tr></thead><tbody>${rows}</tbody></table></div></details>`
+}
+
 function levelCleared() {
   const par = tokenize(level.solution).length
   const s = stars(count, par)
@@ -274,10 +325,15 @@ function levelCleared() {
   renderNav()
   const next = levels[levels.indexOf(level) + 1]
   msg(tr(`"${fileName()}" 클리어 — ${count}타 (기준 ${par}타)`, `"${fileName()}" cleared — ${count} keys (par ${par})`), 'ok')
+  // 해설은 Vim 레벨만 (tmux 는 키 의미가 달라 제외)
+  const explain = !level.kind
+  if (explain) $('#explain').innerHTML = explainHtml(tr(`내 풀이 (${count}타)`, `Your keys (${count})`), keyTokens, false) +
+    explainHtml(tr(`모범 답안 (${par}타)`, `Solution (${par} keys)`), tokenize(level.solution), false)
   showBanner(tr('✔ 클리어', '✔ Cleared'), `
     <div class="stars">${'★'.repeat(s)}${'☆'.repeat(3 - s)}</div>
     <div>${tr(`<b>${count}</b>타 · 기준 ${par}타`, `<b>${count}</b> keys · par ${par}`)}${s < 3 ? `<br><span class="dim">${tr('모범 답안', 'Solution')}</span> <code>${escapeHtml(level.solution)}</code>` : ''}</div>
-    <button id="next">${next ? `${tr('다음', 'Next')}: ${next.title} ⏎` : tr('미션 하러 가기 ⏎', 'Try the drills ⏎')}</button>`,
+    <div class="banner-actions">${explain ? `<button id="explain-btn" class="ghost">${tr('📖 풀이 해설', '📖 Step by step')}</button>` : ''}
+    <button id="next">${next ? `${tr('다음', 'Next')}: ${next.title} ⏎` : tr('미션 하러 가기 ⏎', 'Try the drills ⏎')}</button></div>`,
   () => { location.hash = next ? next.id : missions[0].id })
 }
 
@@ -312,6 +368,8 @@ function showBanner(title, html, onNext) {
   $('#banner').innerHTML = `<span class="float-title">${title}</span>${html}`
   $('#banner').hidden = false
   $('#next').onclick = onNext
+  const ex = $('#explain-btn')
+  if (ex) ex.onclick = () => { $('#banner').hidden = true; $('#explain details')?.setAttribute('open', ''); $('#explain').scrollIntoView({ block: 'nearest' }) }
   $('#next').focus()
 }
 
@@ -319,6 +377,7 @@ function mount(lvl) {
   level = lvl
   count = 0
   keyLog = []
+  keyTokens = []
   done = false
   view?.destroy()
   tm = null
@@ -378,6 +437,8 @@ function mount(lvl) {
     if (session && !session.t0) session.t0 = performance.now()
     count++
     keyLog.push(keyLabel(e))
+    const tok = keyToken(e)
+    if (tok) keyTokens.push(tok)
     queueMicrotask(() => renderStatus(getCM(view).state.vim.insertMode ? 'insert' : undefined))
   }, true)
   view.contentDOM.addEventListener('mousedown', (e) => { e.preventDefault(); view.focus(); msg(tr('마우스 대신 키보드로 이동하세요', 'Move with the keyboard, not the mouse'), 'error') })
@@ -518,6 +579,7 @@ function load(id) {
   $('#hint').hidden = !lvl.solution
   $('#hint-text').hidden = true
   $('#hint-text').innerHTML = lvl.solution ? `<code>${escapeHtml(lvl.solution)}</code>` : ''
+  $('#explain').innerHTML = ''
   // 같은 레벨을 진짜 Vim(vim.wasm)으로 — tmux 레벨은 해당 없음
   $('#real-link').hidden = lvl.kind === 'tmux'
   $('#real-link').href = `real/#${lvl.id}`
@@ -546,7 +608,11 @@ document.addEventListener('keydown', (e) => {
 $('#dash-scheme').onclick = (e) => { e.preventDefault(); cycleScheme() }
 
 $('#reset').onclick = () => (session ? startMission(session.mission) : load(level.id))
-$('#hint').onclick = () => { $('#hint-text').hidden = false; focusMain() }
+$('#hint').onclick = () => {
+  $('#hint-text').hidden = false
+  if (!level.kind && level.solution) $('#explain').innerHTML = explainHtml(tr('모범 답안 단계별', 'Solution, step by step'), tokenize(level.solution), true)
+  focusMain()
+}
 $('#menu').onclick = () => document.body.classList.toggle('nav-open')
 $('#nav').onclick = (e) => { if (e.target.closest('a')) document.body.classList.remove('nav-open') }
 translateDom()
@@ -562,6 +628,11 @@ window.__edu = {
   get level() { return level }, get session() { return session && { round: session.round, total: session.total } },
   // 실제 Neovim 과 비교 테스트용: 임의 텍스트로 에디터를 띄우고 결과를 읽음
   mountText(text, cursor) { mount({ id: 'diff', keys: [], desc: '', start: text, cursor }) },
+  // 해설 리플레이 검증용: 내 키·모범 답안을 다시 실행한 마지막 상태가 실제 에디터와 같은지
+  explainCheck() {
+    const last = (tokens) => { const st = replay(tokens, replayView, Vim, getCM).steps.at(-1); return st && { text: st.text, cursor: st.cursor } }
+    return { mine: last(keyTokens), solution: last(tokenize(level.solution)), rows: document.querySelectorAll('#explain tbody tr').length }
+  },
   get editor() {
     const head = view.state.selection.main.head
     const line = view.state.doc.lineAt(head)

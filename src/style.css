@@ -35,7 +35,7 @@ html, body { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--fg);
   font: 14px/1.6 var(--mono);
-  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+  display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); overflow: hidden;
 }
 a { color: inherit; }
 code { color: var(--orange); }
@@ -190,7 +190,7 @@ footer { padding-bottom: env(safe-area-inset-bottom, 0px); background: var(--bg)
 #cmdline.ok { color: var(--green); }
 
 @media (max-width: 860px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
   #menu { display: flex; }
   .tree { display: none; }
   body.nav-open .tree { display: block; position: fixed; inset: 36px 0 52px; z-index: 6; }
@@ -265,3 +265,21 @@ body.real main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px
 
 .lang { margin: 0 4px; padding: 0 10px; background: transparent; color: var(--fg-dim); }
 .lang:hover { color: var(--fg); }
+
+/* ── 풀이 해설 ── */
+/* 화면 밖(left:-10000px)이나 visibility:hidden 이면 CodeMirror 가 줄 좌표를 못 재서 j/k 가 틀어짐 → 화면 안에 투명하게 */
+.offscreen { position: fixed; top: 0; left: 0; width: 600px; opacity: 0; pointer-events: none; z-index: -1; }
+#explain:empty { display: none; }
+#explain { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 10px; }
+.explain summary { cursor: pointer; color: var(--blue); font-family: var(--mono); }
+.ex-scroll { overflow-x: auto; margin-top: 6px; }
+.explain table { border-collapse: collapse; font-family: var(--mono); font-size: 13px; width: 100%; }
+.explain th { text-align: left; color: var(--fg-dim); font-weight: normal; border-bottom: 1px solid var(--line); padding: 4px 8px; }
+.explain td { padding: 4px 8px; border-bottom: 1px solid var(--bg-hl); vertical-align: top; }
+.explain td:nth-child(2) { white-space: nowrap; }
+.explain kbd { margin-right: 2px; }
+.ex-changed td:first-child { box-shadow: inset 2px 0 var(--green); }
+.ex-result { white-space: pre; }
+.ex-cur { background: var(--fg); color: var(--bg); }
+.banner-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.notify button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: normal; }

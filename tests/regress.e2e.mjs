@@ -1,6 +1,7 @@
 // 사용자 실사용에서 나온 버그 재발 방지: undo/redo, df{없는 글자}, 한글 IME 조합 후 키 입력
 import { preview } from 'vite'
 import * as pw from 'playwright-core'
+import { levels } from '../src/levels.js'
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:4178/'
 const server = process.env.BASE_URL ? null : await preview({ preview: { port: 4178 } })
@@ -85,6 +86,19 @@ if (name === 'chromium') {
   await page.keyboard.type('u')
   expect('한글 입력도 u 로 되돌리기', (await state()).doc, 'Hello, Vimm!')
 }
+
+// 5) 폰 폭(390px)에서 페이지가 가로로 밀리지 않음 (긴 레벨 제목·정규식 때문에 생겼던 문제). 해설 표도 펼쳐서 확인
+const phone = await browser.newPage({ viewport: { width: 390, height: 844 } })
+const wide = []
+for (const id of ['', ...levels.map((l) => l.id)]) {
+  for (const lang of ['ko', 'en']) {
+    await phone.goto('about:blank'); await phone.goto(`${BASE}?lang=${lang}#${id}`); await phone.waitForTimeout(150)
+    if (id && !levels.find((l) => l.id === id).kind) await phone.click('#hint')
+    const w = await phone.evaluate(() => document.documentElement.scrollWidth)
+    if (w > 390) wide.push(`${lang}#${id} ${w}px`)
+  }
+}
+expect('390px 폭에서 가로 스크롤 없음', wide, [])
 
 await browser.close()
 server?.httpServer.close()
