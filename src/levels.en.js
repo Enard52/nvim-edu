@@ -10,6 +10,7 @@ export const EN = {
     power: '4. Visual · Macros',
     real: '5. Real world: cleaning up AI code',
     tmux: '6. tmux: must-know keys for AI terminals',
+    guru: '7. Guru: real-world combos',
   },
   levels: {
     hjkl: {
@@ -166,6 +167,34 @@ export const EN = {
       title: 'Boss: set up your agent workspace',
       desc: 'On your own from scratch: create a <code>work</code> session, start the agent there (<code>claude</code>), then open a shell pane on the right and leave the cursor in it.',
       checks: ['The <code>work</code> session', 'The agent runs in the left pane', 'The right shell pane is active'],
+    },
+    'guru-rename': {
+      title: '[Code] Rename a whole word only: * n .',
+      desc: 'Rename <code>user</code> to <code>member</code>, but leave <code>getUser</code> and <code>username</code> alone. <b>*</b> searches for the word under the cursor as a <em>whole word</em>. Fix one with <b>ciw</b>, then <b>n</b> next and <b>.</b> repeat.',
+    },
+    'guru-log': {
+      title: '[Logs] Keep only the error lines: :v',
+      desc: '<b>:v/pattern/d</b> is the opposite of <b>:g</b>: it deletes lines that do <em>not</em> match. Keep only the <code>ERROR</code> lines of this agent log.',
+    },
+    'guru-sort': {
+      title: '[Config] Sort and dedupe: :sort u',
+      desc: '<b>:sort</b> sorts lines; add <b>u</b> to drop duplicates too. Clean up a <code>.gitignore</code> that got appended to one too many times.',
+    },
+    'guru-norm': {
+      title: '[Config] Edit matching lines: :g + :norm',
+      desc: '<b>:g/pattern/norm keys</b> runs NORMAL-mode keys on every matching line. Leave comments and blank lines alone and add <code>export </code> only to the lines with <code>=</code>.',
+    },
+    'guru-capture': {
+      title: '[Code] Restructure with regex groups: \\( \\) \\1',
+      desc: 'Whatever <b>\\(…\\)</b> captures can be reused in the replacement as <b>\\1</b> <b>\\2</b>. Migrate the old <code>assertEqual(a, b)</code> tests to <code>expect(a).toBe(b)</code>.',
+    },
+    'guru-counter': {
+      title: '[Docs] Auto-numbered list: macro + Ctrl-a',
+      desc: 'Record <b>yyp</b> (duplicate the line) and <b>Ctrl-a</b> (increment the number) as a macro, replay it, and the numbers fill themselves in. Make a 5-step list.',
+    },
+    'guru-boss': {
+      title: 'Boss: fix a commit message in one go',
+      desc: 'A commit message written by an agent: ① typo <code>hanlde</code> → <code>handle</code> (<b>xp</b> swaps two characters) ② issue number <code>#41</code> → <code>#42</code> ③ move the <code>Closes</code> line to the bottom (<b>ddp</b> swaps two lines). Finish in as few keys as you can.',
     },
   },
 }

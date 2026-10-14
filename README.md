@@ -14,7 +14,7 @@ This site trains exactly those keys until your fingers remember them.
 
 | Mode | |
 |------|------|
-| **Levels** (34) | Motions → editing → text objects → visual & macros → real-world cleanup (`:%s`, `:g`, applying an AI code review) → **tmux**. ★1–3 based on keystrokes vs. par |
+| **Levels** (41) | Motions → editing → text objects → visual & macros → real-world cleanup (`:%s`, `:g`, applying an AI code review) → **tmux** → **guru combos** (code, logs, config, docs: `*` `n` `.`, `:v`, `:sort u`, `:g`+`:norm`, regex groups, macro + Ctrl-a). ★1–3 based on keystrokes vs. par |
 | **tmux chapter** | Only the keys a human still types while an agent runs: sessions, splits, pane moves, zoom, copy mode to scroll and copy errors, windows, detach/attach, switching sessions |
 | **Drills** | 10 random tasks in a row (motion, delete, change, tmux). Best time and keystrokes are saved |
 | **Daily challenge** | Date-seeded, so everyone gets the same tasks that day. Keeps a 🔥 streak |
@@ -32,8 +32,8 @@ Languages: English and Korean. Picked from `?lang=en|ko`, then your saved choice
 
 Levels run on the [@replit/codemirror-vim](https://github.com/replit/codemirror-vim) emulator for speed, and **real Neovim is the reference**:
 
-- `tests/nvim-diff.mjs` feeds the same keys (common commands from `:help` plus every level solution, 173 cases) into `nvim --headless` and into the site's editor, then compares text, cursor and mode. CI runs it on every push with Neovim 0.11.0.
-- It started at 130/169 matching. After fixing the emulator, it is **173/173**. The fixes live in `patches/` (applied by patch-package).
+- `tests/nvim-diff.mjs` feeds the same keys (common commands from `:help` plus every level solution, 180 cases) into `nvim --headless` and into the site's editor, then compares text, cursor and mode. CI runs it on every push with Neovim 0.11.0.
+- It started at 130/169 matching. After fixing the emulator, it is **180/180**. The fixes live in `patches/` (applied by patch-package).
 
 ```bash
 npm run test:nvim   # needs nvim on PATH

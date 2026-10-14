@@ -140,6 +140,8 @@ function moveOrCopy(cm, p, copy) {
   const last = t + lines.length
   cm.setCursor(last, firstNonBlank(cm, last))
 }
+// 라이브러리 기본은 JS 정규식(pcre). 실제 Vim 처럼 \( \) \< \> 를 쓰게 Vim 정규식으로
+Vim.setOption('pcre', false)
 Vim.defineEx('move', 'm', (cm, p) => moveOrCopy(cm, p, false))
 Vim.defineEx('copy', 'co', (cm, p) => moveOrCopy(cm, p, true))
 Vim.defineEx('t', 't', (cm, p) => moveOrCopy(cm, p, true))

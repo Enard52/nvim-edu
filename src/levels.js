@@ -16,6 +16,7 @@ export const chapters = [
   { id: 'power', title: '4. 비주얼 · 매크로' },
   { id: 'real', title: '5. 실전: AI 코드 다듬기' },
   { id: 'tmux', title: '6. tmux: AI 터미널 필수 키' },
+  { id: 'guru', title: '7. 구루: 상황별 콤보' },
 ]
 
 export const levels = [
@@ -309,6 +310,64 @@ export const levels = [
       { label: '오른쪽 쉘 pane 이 활성', test: (s) => s.attached === 'work' && win(s).active === paneIds(win(s).layout)[1] },
     ],
     solution: 'tmux new -s work<CR>claude<CR><C-b>%',
+  },
+  // ── 7. 구루 ── 상황(코드·로그·설정·문서)별로 여러 기술을 엮는 콤보. par 가 빡빡함
+  {
+    id: 'guru-rename', chapter: 'guru', title: '[코드] 단어만 골라 이름 바꾸기 * n .',
+    desc: '<code>user</code> 를 <code>member</code> 로 바꾸되 <code>getUser</code>, <code>username</code> 은 그대로 두세요. <b>*</b> 는 커서 밑 단어를 <em>단어 단위</em>로 검색합니다. <b>ciw</b> 로 한 번 고치고 <b>n</b> 다음, <b>.</b> 반복.',
+    keys: ['*', 'ciw', 'n', '.'], lang: 'js',
+    start: 'const user = await getUser(id);\nif (!user) return null;\nreturn user.username;', cursor: [0, 6],
+    goal: { text: 'const member = await getUser(id);\nif (!member) return null;\nreturn member.username;' },
+    solution: '*ciwmember<Esc>n.n.',
+  },
+  {
+    id: 'guru-log', chapter: 'guru', title: '[로그] 에러 줄만 남기기 :v',
+    desc: '<b>:v/패턴/d</b> 는 <b>:g</b> 의 반대. 패턴이 <em>없는</em> 줄을 지웁니다. 에이전트 로그에서 <code>ERROR</code> 줄만 남기세요.',
+    keys: [':v', ':g!'],
+    start: '10:01 INFO  server started\n10:02 ERROR db timeout\n10:02 INFO  retry 1\n10:03 WARN  slow query\n10:04 ERROR db timeout\n10:05 INFO  healthy',
+    cursor: [0, 0],
+    goal: { text: '10:02 ERROR db timeout\n10:04 ERROR db timeout' },
+    solution: ':v/ERROR/d<CR>',
+  },
+  {
+    id: 'guru-sort', chapter: 'guru', title: '[설정] 정렬하고 중복 지우기 :sort u',
+    desc: '<b>:sort</b> 는 줄 정렬, <b>u</b> 를 붙이면 중복도 지웁니다. 여러 번 덧붙여 엉망이 된 <code>.gitignore</code> 를 정리하세요.',
+    keys: [':sort', ':sort u'],
+    start: 'node_modules/\ndist/\n.env\ndist/\ncoverage/\n.env', cursor: [0, 0],
+    goal: { text: '.env\ncoverage/\ndist/\nnode_modules/' },
+    solution: ':sort u<CR>',
+  },
+  {
+    id: 'guru-norm', chapter: 'guru', title: '[설정] 골라서 일괄 편집 :g + :norm',
+    desc: '<b>:g/패턴/norm 키</b> 는 패턴이 있는 줄마다 NORMAL 키를 실행합니다. 주석·빈 줄은 두고 <code>=</code> 가 있는 줄에만 <code>export </code> 를 붙이세요.',
+    keys: [':g', ':norm', 'I'],
+    start: '# database\nDB_HOST=localhost\nDB_PORT=5432\n\n# logging\nLOG_LEVEL=debug', cursor: [0, 0],
+    goal: { text: '# database\nexport DB_HOST=localhost\nexport DB_PORT=5432\n\n# logging\nexport LOG_LEVEL=debug' },
+    solution: ':g/=/norm Iexport <CR>',
+  },
+  {
+    id: 'guru-capture', chapter: 'guru', title: '[코드] 정규식 그룹으로 구조 바꾸기 \\( \\) \\1',
+    desc: '<b>\\(…\\)</b> 로 잡은 부분을 바꿀 말에서 <b>\\1</b> <b>\\2</b> 로 다시 씁니다. 옛 테스트 문법 <code>assertEqual(a, b)</code> 를 <code>expect(a).toBe(b)</code> 로 옮기세요.',
+    keys: [':%s', '\\( \\)', '\\1 \\2', '.*'], lang: 'js',
+    start: 'assertEqual(sum(1, 2), 3);\nassertEqual(user.name, "kim");\nassertEqual(list.length, 0);', cursor: [0, 0],
+    goal: { text: 'expect(sum(1, 2)).toBe(3);\nexpect(user.name).toBe("kim");\nexpect(list.length).toBe(0);' },
+    solution: ':%s/assertEqual(\\(.*\\), \\(.*\\))/expect(\\1).toBe(\\2)/<CR>',
+  },
+  {
+    id: 'guru-counter', chapter: 'guru', title: '[문서] 번호 목록 자동 생성 매크로 + Ctrl-a',
+    desc: '<b>yyp</b> 로 줄을 복제하고 <b>Ctrl-a</b> 로 번호를 올리는 걸 매크로로 녹화해 반복하면 번호가 저절로 붙습니다. 5단계 목록을 만드세요.',
+    keys: ['qa', 'yyp', 'Ctrl-a', '@a'],
+    start: '1. step', cursor: [0, 0],
+    goal: { text: '1. step\n2. step\n3. step\n4. step\n5. step' },
+    solution: 'qayyp<C-a>q3@a',
+  },
+  {
+    id: 'guru-boss', chapter: 'guru', title: '보스: 커밋 메시지 한 번에 고치기',
+    desc: '에이전트가 쓴 커밋 메시지: ① 오타 <code>hanlde</code> → <code>handle</code> (<b>xp</b> 는 두 글자 자리 바꾸기) ② 이슈 번호 <code>#41</code> → <code>#42</code> ③ <code>Closes</code> 줄을 맨 아래로 (<b>ddp</b> 는 줄 자리 바꾸기). 적은 타수로 끝내 보세요.',
+    keys: ['f', 'xp', 'Ctrl-a', 'ddp'],
+    start: 'fix: hanlde empty input\n- add guard in parser\nCloses #41\n- update tests', cursor: [0, 0],
+    goal: { text: 'fix: handle empty input\n- add guard in parser\n- update tests\nCloses #42' },
+    solution: 'flxpjj<C-a>ddp',
   },
 ]
 
