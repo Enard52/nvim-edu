@@ -85,7 +85,7 @@ Add one object to `src/levels.js` (and its English text to `src/levels.en.js`):
 
 - Vim behavior comes from an emulator; differences against real Neovim are tracked by `tests/nvim-diff.mjs`.
 - The tmux simulator mimics the default key bindings only (no `C-b :` command prompt, mouse or resizing).
-- Real Vim mode needs `SharedArrayBuffer`. GitHub Pages cannot send COOP/COEP headers, so [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) adds them, which **does not work reliably in Safari** (a notice is shown). It downloads about 7MB the first time. Extremely fast input (0 ms between keys, as in automation) can be reordered by vim.wasm; human typing speed (40 ms+) was fine.
+- Real Vim mode needs `SharedArrayBuffer`. GitHub Pages cannot send COOP/COEP headers, so [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) adds them, which **does not work reliably in Safari** (a notice is shown). It downloads about 0.8MB (compressed) the first time; the Vim runtime is trimmed to the files the levels need at build time. Extremely fast input (0 ms between keys, as in automation) can be reordered by vim.wasm; human typing speed (40 ms+) was fine.
 - A physical keyboard is required (no touch input).
 - Progress is stored only in your browser's localStorage.
 

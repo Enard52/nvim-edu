@@ -3,9 +3,6 @@ import { EditorState, Compartment, Prec } from '@codemirror/state'
 import { history } from '@codemirror/commands'
 import { HighlightStyle, syntaxHighlighting, bracketMatching } from '@codemirror/language'
 import { tags as t } from '@lezer/highlight'
-import { javascript } from '@codemirror/lang-javascript'
-import { python } from '@codemirror/lang-python'
-import { yaml } from '@codemirror/lang-yaml'
 import { vim, getCM, Vim, CodeMirror } from '@replit/codemirror-vim'
 import { chapters, levels, tokenize, stars } from './levels.js'
 import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
@@ -14,7 +11,13 @@ import { renderTmux, tmuxMode, tmuxTarget } from './tmux-view.js'
 import { lang, t as tr, setLang, translateDom } from './i18n.js'
 import './style.css'
 
-const LANGS = { js: javascript, py: python, yaml }
+// 문법 강조는 레벨이 쓸 때만 불러옴 (첫 화면 번들에서 빼서 따로 받음)
+const LANGS = {
+  js: () => import('@codemirror/lang-javascript').then((m) => m.javascript()),
+  py: () => import('@codemirror/lang-python').then((m) => m.python()),
+  yaml: () => import('@codemirror/lang-yaml').then((m) => m.yaml()),
+}
+const language = new Compartment()
 const SANDBOX = {
   id: 'sandbox', title: tr('자유 연습장', 'Free practice'), keys: [], file: 'scratch.js',
   desc: tr('목표 없이 마음껏 연습하세요. <code>:s</code>, 매크로, 텍스트 오브젝트 무엇이든.', 'No goal: practice anything. <code>:s</code>, macros, text objects…'), lang: 'js',
@@ -336,7 +339,7 @@ function mount(lvl) {
         EditorState.allowMultipleSelections.of(true), // Ctrl-v 블록 입력에 필요
         relNumbers.of(numbersFor(curLine)),
         drawSelection(), highlightActiveLine(), highlightActiveLineGutter(), bracketMatching(), highlight,
-        LANGS[lvl.lang]?.() ?? [],
+        language.of([]),
         marks.length ? EditorView.decorations.of(Decoration.set(marks.map((m) => Decoration.mark({ class: m.cls }).range(m.from, m.to ?? m.from + 1)))) : [],
         // 이동 과제는 텍스트 변경 금지: 목표 좌표가 밀리지 않게
         isMove ? EditorState.transactionFilter.of((tx) => (tx.docChanged ? [] : tx)) : [],
@@ -355,6 +358,8 @@ function mount(lvl) {
       ],
     }),
   })
+  const v = view // 불러오는 사이 다른 레벨로 넘어갔으면 무시
+  LANGS[lvl.lang]?.().then((ext) => { if (view === v) v.dispatch({ effects: language.reconfigure(ext) }) })
 
   // 키 카운트 + 방향키/마우스/한글 입력 차단 (손가락을 홈row에 두는 습관)
   // 방향키는 hjkl 을 익히는 1장(이동)과 이동 미션에서만 막음. 그 뒤로는 실제 Vim 처럼 허용

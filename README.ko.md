@@ -89,7 +89,7 @@ npm run test:nvim   # nvim 이 PATH 에 있어야 함
 - Vim 동작은 `@replit/codemirror-vim` 에뮬레이션이라 실제 Neovim 과 일부 다를 수 있습니다.
 - tmux 는 기본 키 바인딩만 흉내 낸 시뮬레이터입니다 (`C-b :` 명령 프롬프트, 마우스, 리사이즈 미지원).
 - 진짜 Vim 모드는 키를 아주 빠르게(키 사이 0ms, 자동 입력 수준) 넣으면 순서가 섞이는 경우가 있습니다. 사람 속도(40ms 이상)에서는 문제없었습니다.
-- 진짜 Vim 모드는 `SharedArrayBuffer` 가 필요합니다. GitHub Pages 는 COOP/COEP 헤더를 못 붙여서 [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) 로 우회하는데, **Safari 에서는 이 우회가 안정적으로 동작하지 않아** 안내 문구가 뜹니다 (헤더를 붙일 수 있는 호스팅으로 옮기면 해결). 첫 로딩에 약 7MB 를 받습니다.
+- 진짜 Vim 모드는 `SharedArrayBuffer` 가 필요합니다. GitHub Pages 는 COOP/COEP 헤더를 못 붙여서 [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) 로 우회하는데, **Safari 에서는 이 우회가 안정적으로 동작하지 않아** 안내 문구가 뜹니다 (헤더를 붙일 수 있는 호스팅으로 옮기면 해결). 첫 로딩에 약 0.8MB(압축 기준)를 받습니다. 빌드할 때 Vim 런타임에서 레벨에 필요한 파일만 남깁니다.
 - 물리 키보드가 필요합니다 (모바일 터치 입력 미지원).
 - 진행 상황은 브라우저 localStorage 에만 저장됩니다.
 
