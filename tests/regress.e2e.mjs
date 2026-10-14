@@ -49,6 +49,13 @@ await open('x')
 await page.keyboard.press('ArrowRight')
 expect('2장부터는 방향키 이동', (await state()).pos, '1:2')
 
+// 2-2) 언어 버튼: #레벨 이 붙은 주소에서도 바로 전환 (전엔 해시만 같은 주소라 새로고침이 안 됐음)
+await open('hjkl')
+await Promise.all([page.waitForEvent('load'), page.click('#lang')])
+expect('레벨 화면에서 언어 버튼 → 영어', await page.locator('#lang').innerText(), '한국어')
+await Promise.all([page.waitForEvent('load'), page.click('#lang')])
+expect('다시 누르면 한국어', await page.locator('#lang').innerText(), 'EN')
+
 // 3) 한글 IME (Chromium 만: CDP 로 실제 IME 와 같은 순서의 이벤트를 보냄)
 if (name === 'chromium') {
   const cdp = await page.context().newCDPSession(page)

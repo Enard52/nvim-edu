@@ -16,7 +16,10 @@ export function setLang(next) {
   try { localStorage.setItem('nvim-edu:lang', next) } catch {}
   const url = new URL(location.href)
   url.searchParams.delete('lang')
-  location.replace(url) // 레벨 데이터가 로드 시점에 언어를 정하므로 새로 불러옴
+  // 레벨 데이터가 로드 시점에 언어를 정하므로 새로 불러옴.
+  // location.replace 는 #레벨 만 같은 주소면 새로고침을 안 해서, 주소만 바꾸고 직접 reload
+  history.replaceState(history.state, '', url)
+  location.reload()
 }
 
 // HTML 의 고정 문구: data-en 속성이 있으면 영어일 때 그 값으로 바꿈
