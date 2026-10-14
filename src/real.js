@@ -14,7 +14,9 @@ document.documentElement.dataset.scheme = store.get('scheme', 'tokyonight')
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 // 고정 문구 번역은 #chapter 등을 채우기 전에 (data-en 이 안쪽 span 을 새로 만듦)
 translateDom()
-$('#lang').textContent = lang === 'en' ? '한국어' : 'EN'
+const langText = lang === 'en' ? '한국어' : 'EN'
+$('#lang').append(langText)
+$('#lang').setAttribute('aria-label', `${langText} ${$('#lang').getAttribute('aria-label')}`)
 $('#lang').onclick = () => setLang(lang === 'en' ? 'ko' : 'en')
 const msg = (text, kind = '') => { $('#cmdline').textContent = text; $('#cmdline').className = kind }
 
