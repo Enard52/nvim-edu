@@ -9,6 +9,7 @@ import { missions, createSession, streak, ymd, rngFrom } from './drill.js'
 import { createTmux, press as tmuxPress, tmuxTask, AGENT_LOG } from './tmux.js'
 import { renderTmux, tmuxMode, tmuxTarget } from './tmux-view.js'
 import { lang, t as tr, setLang, translateDom } from './i18n.js'
+import { initializeAnalytics, trackEvent, trackPageView } from './analytics.js'
 import { replay } from './explain.js'
 import './style.css'
 
@@ -318,6 +319,7 @@ function explainHtml(title, tokens, open) {
 }
 
 function levelCleared() {
+  trackEvent(`level-cleared/${level.id}`)
   const par = tokenize(level.solution).length
   const s = stars(count, par)
   progress[level.id] = Math.max(progress[level.id] ?? 0, s)
@@ -348,6 +350,7 @@ function roundCleared() {
 
   const time = (performance.now() - session.t0) / 1000
   const id = session.mission.id
+  // A drill is one complete ten-round session, not each individual round.
   const best = records[id]
   const isBest = !best || time < best.time
   if (isBest) records[id] = { time, keys: session.keys }
@@ -355,6 +358,7 @@ function roundCleared() {
   if (!days.includes(ymd(new Date()))) days.push(ymd(new Date()))
   store.set('days', days)
   clearInterval(session.timer)
+  trackEvent(`drill-finished/${id}`)
   renderNav()
   msg(`${session.mission.title} ${tr('완료', 'done')} — ${time.toFixed(1)}s, ${session.keys}${KEYS_UNIT}`, 'ok')
   showBanner(isBest ? tr('🏆 최고 기록', '🏆 New best') : tr('✔ 미션 완료', '✔ Drill complete'), `
@@ -560,7 +564,10 @@ function showDashboard() {
 }
 
 function load(id) {
-  if (!id) return showDashboard()
+  if (!id) {
+    showDashboard()
+    return 'dashboard'
+  }
   $('#dashboard').hidden = true
   $('#work').hidden = false
   const known = id === 'sandbox' || levels.some((l) => l.id === id) || missions.some((m) => m.id === id)
@@ -570,7 +577,7 @@ function load(id) {
   msg(`"${fileFor(id)}" — ${tr(':colo <이름> 으로 테마 변경', ':colo <name> changes the theme')}`)
 
   const mission = missions.find((m) => m.id === id)
-  if (mission) { startMission(mission); return renderNav() }
+  if (mission) { startMission(mission); renderNav(); return id }
   clearInterval(session?.timer)
   session = null
   const lvl = levels.find((l) => l.id === id) ?? SANDBOX
@@ -589,6 +596,7 @@ function load(id) {
   $('#real-link').href = `real/#${lvl.id}`
   lvl.kind === 'tmux' ? mountTmux(lvl) : mount(lvl)
   renderNav()
+  return id
 }
 
 // alpha-nvim 로고: 박스 문자는 웹폰트마다 폭이 달라 깨지므로 칸 단위 그리드로 그림
@@ -624,8 +632,10 @@ const langText = lang === 'en' ? '한국어' : 'EN'
 $('#lang').append(langText)
 $('#lang').setAttribute('aria-label', `${langText} ${$('#lang').getAttribute('aria-label')}`)
 $('#lang').onclick = () => setLang(lang === 'en' ? 'ko' : 'en')
-window.addEventListener('hashchange', () => load(location.hash.slice(1)))
-load(location.hash.slice(1))
+const route = () => trackPageView(`/main/${load(location.hash.slice(1))}`)
+window.addEventListener('hashchange', route)
+initializeAnalytics()
+route()
 
 // e2e 테스트용 훅
 window.__edu = {
