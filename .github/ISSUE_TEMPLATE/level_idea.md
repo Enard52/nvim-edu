@@ -8,7 +8,7 @@ assignees: ''
 
 ### 1. Level Summary / 레벨 개요
 - **Title (제목):** 
-- **Chapter (챕터):** `move` | `edit` | `object` | `power` | `real` | `tmux` | `guru`
+- **Chapter (챕터):** `move` | `edit` | `object` | `power` | `real` | `guru` (*참고: tmux 레벨은 터미널 시뮬레이터 별도 형식을 따릅니다 / Note: tmux levels use a separate simulator format*)
 - **Target Key Sequence / Commands (핵심 키):** e.g. `ciw`, `vap`, `g;`
 
 ### 2. Level Content / 레벨 내용

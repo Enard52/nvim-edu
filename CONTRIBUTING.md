@@ -32,6 +32,8 @@
    }
    ```
 
+   > **참고 (tmux 레벨):** `tmux` 챕터 레벨은 Vim 버퍼 대신 터미널 시뮬레이터를 사용하므로 `kind: 'tmux'`, `init()`, `checks` 형태의 별도 구조를 따릅니다 (`src/levels.js`의 `tmux-new` 참조).
+
 2. **영어 번역 추가 (`src/levels.en.js`):**
    `EN.levels` 객체에 동일한 `id`로 영문 텍스트를 등록합니다:
    ```javascript
@@ -60,6 +62,7 @@ Thank you for contributing new levels and improvements to `nvim-edu`!
 
 1. **Add level definition in `src/levels.js`:**
    Add a new entry to the `levels` array specifying `id`, `chapter`, `title`, `desc`, `keys`, `lang`, `start`, `cursor`, `goal`, and `solution`.
+   > **Note on tmux levels:** Levels in the `tmux` chapter use a terminal simulator rather than a Vim buffer and follow a separate format with `kind: 'tmux'`, `init()`, and `checks: [...]` (see `tmux-new` in `src/levels.js`).
 2. **Add English translation in `src/levels.en.js`:**
    Add the matching `id` under `EN.levels` with English `title` and `desc`.
 3. **Par rules:**
